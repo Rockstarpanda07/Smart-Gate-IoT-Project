@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import CameraFeed from "@/components/CameraFeed";
 import DoorStatus from "@/components/DoorStatus";
@@ -7,9 +7,50 @@ import AttendanceTable from "@/components/AttendanceTable";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { AreaChart, UserRound, Clock } from "lucide-react";
+import { fetchStudents, fetchAttendanceLogs } from "@/services/supabase-service";
 
 const Index = () => {
   const [activeCamera, setActiveCamera] = useState(true);
+  const [studentCount, setStudentCount] = useState(0);
+  const [todayEntries, setTodayEntries] = useState(0);
+  const [weekEntries, setWeekEntries] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch students for count
+        const students = await fetchStudents();
+        setStudentCount(students.length);
+        
+        // Fetch attendance logs
+        const logs = await fetchAttendanceLogs();
+        
+        // Calculate today's entries
+        const today = new Date().toISOString().split('T')[0];
+        const todayLogs = logs.filter(log => 
+          log.timestamp && log.timestamp.startsWith(today)
+        );
+        setTodayEntries(todayLogs.length);
+        
+        // Calculate this week's entries
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const weekLogs = logs.filter(log => 
+          log.timestamp && new Date(log.timestamp) >= oneWeekAgo
+        );
+        setWeekEntries(weekLogs.length);
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -36,7 +77,9 @@ const Index = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Students</p>
-                  <p className="text-2xl font-bold">102</p>
+                  <p className="text-2xl font-bold">
+                    {isLoading ? "..." : studentCount}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -48,7 +91,9 @@ const Index = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Today's Entries</p>
-                  <p className="text-2xl font-bold">48</p>
+                  <p className="text-2xl font-bold">
+                    {isLoading ? "..." : todayEntries}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -60,7 +105,9 @@ const Index = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">This Week</p>
-                  <p className="text-2xl font-bold">324</p>
+                  <p className="text-2xl font-bold">
+                    {isLoading ? "..." : weekEntries}
+                  </p>
                 </div>
               </CardContent>
             </Card>

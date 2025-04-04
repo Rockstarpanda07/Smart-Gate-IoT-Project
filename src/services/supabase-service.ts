@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 
@@ -26,6 +27,7 @@ export interface AttendanceLog {
 // Enable RLS policies first, then try these functions
 export const fetchStudents = async (course?: CourseType | null, section?: SectionType | null) => {
   try {
+    console.log("Fetching students with filters:", { course, section });
     let query = supabase.from("students").select();
     
     if (course) {
@@ -43,6 +45,7 @@ export const fetchStudents = async (course?: CourseType | null, section?: Sectio
       throw error;
     }
     
+    console.log("Fetched students:", data);
     return data as Student[];
   } catch (error) {
     console.error("Failed to fetch students:", error);
@@ -52,6 +55,7 @@ export const fetchStudents = async (course?: CourseType | null, section?: Sectio
 
 export const createStudent = async (student: Omit<Student, "id" | "created_at">) => {
   try {
+    console.log("Creating student:", student);
     const { data, error } = await supabase
       .from("students")
       .insert(student)
@@ -63,6 +67,7 @@ export const createStudent = async (student: Omit<Student, "id" | "created_at">)
       throw error;
     }
     
+    console.log("Student created:", data);
     return data as Student;
   } catch (error) {
     console.error("Failed to create student:", error);
@@ -72,6 +77,7 @@ export const createStudent = async (student: Omit<Student, "id" | "created_at">)
 
 export const updateStudent = async (id: string, student: Partial<Omit<Student, "id" | "created_at">>) => {
   try {
+    console.log("Updating student:", { id, data: student });
     const { data, error } = await supabase
       .from("students")
       .update(student)
@@ -84,6 +90,7 @@ export const updateStudent = async (id: string, student: Partial<Omit<Student, "
       throw error;
     }
     
+    console.log("Student updated:", data);
     return data as Student;
   } catch (error) {
     console.error("Failed to update student:", error);
@@ -93,6 +100,7 @@ export const updateStudent = async (id: string, student: Partial<Omit<Student, "
 
 export const deleteStudent = async (id: string) => {
   try {
+    console.log("Deleting student:", id);
     const { error } = await supabase
       .from("students")
       .delete()
@@ -102,6 +110,8 @@ export const deleteStudent = async (id: string) => {
       console.error("Error deleting student:", error);
       throw error;
     }
+    
+    console.log("Student deleted successfully");
   } catch (error) {
     console.error("Failed to delete student:", error);
     throw error;

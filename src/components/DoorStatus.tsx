@@ -135,17 +135,17 @@ const DoorStatus = () => {
             <div className="absolute inset-0 border-4 border-primary/70 rounded-lg"></div>
             
             {/* Door with hinge animation */}
-            <div className="absolute top-1 left-1 bottom-1 w-[calc(100%-8px)] origin-left">
-              <div 
-                className="h-full bg-card border border-primary/40 rounded"
-                style={{
-                  transform: status === "closed" || status === "closing" 
-                    ? `rotateY(0deg)` 
-                    : `rotateY(-${progress}deg)`,
-                  transformStyle: "preserve-3d",
-                  transition: "transform 0.05s linear"
-                }}
-              >
+            <div 
+              className="absolute top-1 left-1 bottom-1 w-[calc(100%-8px)] origin-left transition-transform"
+              style={{
+                transform: `perspective(1000px) rotateY(${status === "closed" || status === "closing" 
+                  ? 0 
+                  : status === "open" 
+                    ? -80 
+                    : -(progress * 0.8)}deg)`
+              }}
+            >
+              <div className="h-full bg-card border border-primary/40 rounded">
                 {/* Door handle */}
                 <div className="absolute top-1/2 right-3 transform -translate-y-1/2 w-2 h-6 bg-primary/80 rounded-full"></div>
               </div>
