@@ -9,7 +9,68 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      attendance_logs: {
+        Row: {
+          id: string
+          status: string
+          student_id: string
+          timestamp: string | null
+          verification_success: boolean
+          verification_type: string
+        }
+        Insert: {
+          id?: string
+          status: string
+          student_id: string
+          timestamp?: string | null
+          verification_success: boolean
+          verification_type: string
+        }
+        Update: {
+          id?: string
+          status?: string
+          student_id?: string
+          timestamp?: string | null
+          verification_success?: boolean
+          verification_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_logs_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["student_id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          course: Database["public"]["Enums"]["course_enum"]
+          created_at: string | null
+          id: string
+          name: string
+          section: Database["public"]["Enums"]["section_enum"]
+          student_id: string
+        }
+        Insert: {
+          course: Database["public"]["Enums"]["course_enum"]
+          created_at?: string | null
+          id?: string
+          name: string
+          section: Database["public"]["Enums"]["section_enum"]
+          student_id: string
+        }
+        Update: {
+          course?: Database["public"]["Enums"]["course_enum"]
+          created_at?: string | null
+          id?: string
+          name?: string
+          section?: Database["public"]["Enums"]["section_enum"]
+          student_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +79,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      course_enum: "B.Tech CSE - IoT" | "B.Tech CSE - CS" | "B.Tech CSE - AI&DS"
+      section_enum: "A" | "B"
     }
     CompositeTypes: {
       [_ in never]: never

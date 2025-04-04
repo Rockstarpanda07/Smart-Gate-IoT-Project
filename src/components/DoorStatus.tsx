@@ -32,12 +32,12 @@ const DoorStatus = () => {
             clearInterval(timer!);
             setStatus("open");
             setLastOpened(new Date().toLocaleTimeString());
-            setAutoCloseTimer(10);
+            setAutoCloseTimer(5); // Changed from 10 to 5 seconds as requested
             return 100;
           }
-          return prev + 5;
+          return prev + 2; // Faster animation (previously +5)
         });
-      }, 150);
+      }, 60); // Faster animation (previously 150ms)
     } else if (status === "closing") {
       // Door closing animation (3 seconds)
       setProgress(100);
@@ -48,9 +48,9 @@ const DoorStatus = () => {
             setStatus("closed");
             return 0;
           }
-          return prev - 5;
+          return prev - 2; // Faster animation (previously -5)
         });
-      }, 150);
+      }, 60); // Faster animation (previously 150ms)
     } else if (status === "open") {
       // Auto close countdown
       timer = setInterval(() => {
@@ -121,14 +121,13 @@ const DoorStatus = () => {
             {/* Door frame */}
             <div className="absolute inset-x-0 top-0 bottom-4 border-t-4 border-x-4 border-primary/70 rounded-t-lg"></div>
             
-            {/* Door */}
+            {/* Door - Updated animation with smoother transition */}
             <div 
-              className={`absolute inset-x-[2px] top-[2px] bottom-4 bg-card border border-primary/40 rounded-t transition-transform duration-300 origin-left ${
-                (status === "open" || status === "opening") ? "animate-door-open" : "animate-door-close"
-              }`}
+              className={`absolute inset-x-[2px] top-[2px] bottom-4 bg-card border border-primary/40 rounded-t origin-left`}
               style={{
                 transformStyle: 'preserve-3d',
-                transform: `rotateY(${-progress * 0.3}deg)`
+                transform: `rotateY(${-Math.min(progress * 0.9, 90)}deg)`,
+                transition: 'transform 0.3s ease-in-out'
               }}
             >
               {/* Door handle */}
