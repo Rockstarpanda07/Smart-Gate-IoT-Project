@@ -134,19 +134,21 @@ const DoorStatus = () => {
             {/* Door frame */}
             <div className="absolute inset-0 border-4 border-primary/70 rounded-lg"></div>
             
-            {/* Door - Sliding animation */}
-            <div 
-              className="absolute top-1 bottom-1 bg-card border border-primary/40 rounded transition-all duration-300 ease-in-out"
-              style={{
-                width: "calc(100% - 8px)",
-                left: status === "closed" || status === "closing" ? 
-                  `${(100 - progress)}%` : 
-                  `${(100 - progress) * -1 + 4}px`,
-                transitionDuration: "0.3s"
-              }}
-            >
-              {/* Door handle */}
-              <div className="absolute top-1/2 left-2 transform -translate-y-1/2 w-2 h-6 bg-primary/80 rounded-full"></div>
+            {/* Door with hinge animation */}
+            <div className="absolute top-1 left-1 bottom-1 w-[calc(100%-8px)] origin-left">
+              <div 
+                className="h-full bg-card border border-primary/40 rounded"
+                style={{
+                  transform: status === "closed" || status === "closing" 
+                    ? `rotateY(0deg)` 
+                    : `rotateY(-${progress}deg)`,
+                  transformStyle: "preserve-3d",
+                  transition: "transform 0.05s linear"
+                }}
+              >
+                {/* Door handle */}
+                <div className="absolute top-1/2 right-3 transform -translate-y-1/2 w-2 h-6 bg-primary/80 rounded-full"></div>
+              </div>
             </div>
             
             {status === "alert" && (

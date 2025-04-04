@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Users, PlusCircle, Pencil, Trash, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,8 +40,8 @@ const AdminDashboard = ({ courseFilter, sectionFilter }: AdminDashboardProps) =>
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: "",
-    course: "" as CourseType,
-    section: "" as SectionType,
+    course: "B.Tech CSE - IoT" as CourseType,
+    section: "A" as SectionType,
     enrollmentYear: new Date().getFullYear()
   });
 
@@ -58,7 +57,7 @@ const AdminDashboard = ({ courseFilter, sectionFilter }: AdminDashboardProps) =>
         toast({
           variant: "destructive",
           title: "Error loading students",
-          description: "Please try again later"
+          description: "There was an issue connecting to the database."
         });
       } finally {
         setIsLoading(false);
@@ -104,9 +103,9 @@ const AdminDashboard = ({ courseFilter, sectionFilter }: AdminDashboardProps) =>
     setCurrentStudent(student);
     setFormData({
       name: student.name,
-      course: student.course as CourseType,
-      section: student.section as SectionType,
-      enrollmentYear: new Date().getFullYear() // Default to current year for existing students
+      course: student.course,
+      section: student.section,
+      enrollmentYear: parseInt(student.student_id.substring(0, 2)) + 2000
     });
     setIsDialogOpen(true);
   };
@@ -158,43 +157,47 @@ const AdminDashboard = ({ courseFilter, sectionFilter }: AdminDashboardProps) =>
           description: `${newStudent.name} has been successfully added with ID ${newStudent.student_id}.`
         });
       }
-    } catch (error) {
+      
+      // Close the dialog
+      setIsDialogOpen(false);
+    } catch (error: any) {
       console.error("Error saving student:", error);
       toast({
         variant: "destructive",
-        title: "Error saving student",
-        description: "Please try again later"
+        title: "Database error",
+        description: error.message || "Could not save student data. Please check your connection and try again."
       });
     } finally {
       setIsLoading(false);
-      setIsDialogOpen(false);
     }
   };
 
   const handleDelete = async () => {
-    if (currentStudent) {
-      setIsLoading(true);
-      try {
-        await deleteStudent(currentStudent.id);
-        
-        // Update local state
-        setStudents(students.filter(student => student.id !== currentStudent.id));
-        
-        toast({
-          title: "Student deleted",
-          description: `${currentStudent.name} has been successfully deleted.`
-        });
-      } catch (error) {
-        console.error("Error deleting student:", error);
-        toast({
-          variant: "destructive",
-          title: "Error deleting student",
-          description: "Please try again later"
-        });
-      } finally {
-        setIsLoading(false);
-        setIsDeleteDialogOpen(false);
-      }
+    if (!currentStudent) return;
+    
+    setIsLoading(true);
+    try {
+      await deleteStudent(currentStudent.id);
+      
+      // Update local state
+      setStudents(students.filter(student => student.id !== currentStudent.id));
+      
+      toast({
+        title: "Student deleted",
+        description: `${currentStudent.name} has been successfully deleted.`
+      });
+      
+      // Close the dialog
+      setIsDeleteDialogOpen(false);
+    } catch (error: any) {
+      console.error("Error deleting student:", error);
+      toast({
+        variant: "destructive",
+        title: "Database error",
+        description: error.message || "Could not delete student. Please try again."
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
