@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,7 +62,19 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				success: {
+					DEFAULT: 'hsl(var(--success))',
+					foreground: 'hsl(var(--success-foreground))'
+				},
+				warning: {
+					DEFAULT: 'hsl(var(--warning))',
+					foreground: 'hsl(var(--warning-foreground))'
+				},
+				info: {
+					DEFAULT: 'hsl(var(--info))',
+					foreground: 'hsl(var(--info-foreground))'
+				},
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -84,11 +97,40 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-ring': {
+					'0%': {
+						transform: 'scale(0.8)',
+						opacity: '0'
+					},
+					'50%': {
+						opacity: '0.5'
+					},
+					'100%': {
+						transform: 'scale(1.2)',
+						opacity: '0'
+					}
+				},
+				'door-open': {
+					'0%': { transform: 'rotate(0deg)' },
+					'100%': { transform: 'rotate(-30deg)' }
+				},
+				'door-close': {
+					'0%': { transform: 'rotate(-30deg)' },
+					'100%': { transform: 'rotate(0deg)' }
+				},
+				'fade-in': {
+					'0%': { opacity: '0' },
+					'100%': { opacity: '1' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-ring': 'pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+				'door-open': 'door-open 0.5s ease-in-out forwards',
+				'door-close': 'door-close 0.5s ease-in-out forwards',
+				'fade-in': 'fade-in 0.4s ease-out'
 			}
 		}
 	},
