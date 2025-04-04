@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
 
-export type CourseType = "B.Tech CSE - IoT" | "B.Tech CSE - CS" | "B.Tech CSE - AI&DS";
-export type SectionType = "A" | "B";
+export type CourseType = Database["public"]["Enums"]["course_enum"];
+export type SectionType = Database["public"]["Enums"]["section_enum"];
 
 export interface Student {
   id: string;
@@ -102,13 +103,10 @@ export const fetchAttendanceLogs = async () => {
     throw error;
   }
   
-  // Transform the nested student object
-  const formattedData = data.map(log => ({
+  return data.map(log => ({
     ...log,
-    student: log.students as Student
-  }));
-  
-  return formattedData as AttendanceLog[];
+    student: log.students as unknown as Student
+  })) as AttendanceLog[];
 };
 
 // Generate student ID based on the pattern yyvvvrrr
