@@ -177,22 +177,22 @@
   animation: fade-in 0.3s ease-in-out forwards;
 }
 
-@keyframes door-open {
-  from { transform: rotateY(0deg); }
-  to { transform: rotateY(-90deg); }
+@keyframes slide-door-open {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
 }
 
-@keyframes door-close {
-  from { transform: rotateY(-90deg); }
-  to { transform: rotateY(0deg); }
+@keyframes slide-door-close {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
 }
 
 .animate-door-open {
-  animation: door-open 3s ease-in-out forwards;
+  animation: slide-door-open 0.5s ease-in-out forwards;
 }
 
 .animate-door-close {
-  animation: door-close 3s ease-in-out forwards;
+  animation: slide-door-close 0.5s ease-in-out forwards;
 }
 
 @keyframes scan {
