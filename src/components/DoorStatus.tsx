@@ -4,7 +4,6 @@ import { DoorClosed, DoorOpen, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 
 const DoorStatus = () => {
   const [status, setStatus] = useState<"closed" | "opening" | "open" | "closing" | "alert">("closed");
@@ -33,12 +32,12 @@ const DoorStatus = () => {
             clearInterval(timer!);
             setStatus("open");
             setLastOpened(new Date().toLocaleTimeString());
-            setAutoCloseTimer(5); // 5 seconds auto-close timer
+            setAutoCloseTimer(10);
             return 100;
           }
-          return prev + 2; // Faster animation
+          return prev + 5;
         });
-      }, 60);
+      }, 150);
     } else if (status === "closing") {
       // Door closing animation (3 seconds)
       setProgress(100);
@@ -49,9 +48,9 @@ const DoorStatus = () => {
             setStatus("closed");
             return 0;
           }
-          return prev - 2; // Faster animation
+          return prev - 5;
         });
-      }, 60);
+      }, 150);
     } else if (status === "open") {
       // Auto close countdown
       timer = setInterval(() => {
@@ -82,18 +81,6 @@ const DoorStatus = () => {
           setStatus("alert");
         }, 3000);
       }
-    }
-  };
-  
-  const handleOpenDoor = () => {
-    if (status === "closed") {
-      setStatus("opening");
-    }
-  };
-  
-  const handleCloseDoor = () => {
-    if (status === "open") {
-      setStatus("closing");
     }
   };
   
@@ -130,26 +117,26 @@ const DoorStatus = () => {
       </CardHeader>
       <CardContent className="p-6">
         <div className="relative h-40 w-full flex items-center justify-center">
-          <div className="w-full h-full relative max-w-xs mx-auto">
+          <div className="w-20 h-full relative">
             {/* Door frame */}
-            <div className="absolute inset-0 border-4 border-primary/70 rounded-lg"></div>
+            <div className="absolute inset-x-0 top-0 bottom-4 border-t-4 border-x-4 border-primary/70 rounded-t-lg"></div>
             
-            {/* Door with hinge animation */}
+            {/* Door */}
             <div 
-              className="absolute top-1 left-1 bottom-1 w-[calc(100%-8px)] origin-left transition-transform"
+              className={`absolute inset-x-[2px] top-[2px] bottom-4 bg-card border border-primary/40 rounded-t transition-transform duration-300 origin-left ${
+                (status === "open" || status === "opening") ? "animate-door-open" : "animate-door-close"
+              }`}
               style={{
-                transform: `perspective(1000px) rotateY(${status === "closed" || status === "closing" 
-                  ? 0 
-                  : status === "open" 
-                    ? -80 
-                    : -(progress * 0.8)}deg)`
+                transformStyle: 'preserve-3d',
+                transform: `rotateY(${-progress * 0.3}deg)`
               }}
             >
-              <div className="h-full bg-card border border-primary/40 rounded">
-                {/* Door handle */}
-                <div className="absolute top-1/2 right-3 transform -translate-y-1/2 w-2 h-6 bg-primary/80 rounded-full"></div>
-              </div>
+              {/* Door handle */}
+              <div className="absolute top-1/2 right-2 w-2 h-6 bg-primary/80 rounded-full"></div>
             </div>
+            
+            {/* Floor */}
+            <div className="absolute inset-x-[-20px] bottom-0 h-4 bg-primary/20 rounded"></div>
             
             {status === "alert" && (
               <div className="absolute inset-0 flex items-center justify-center">
@@ -167,27 +154,6 @@ const DoorStatus = () => {
             <Progress value={progress} className="h-2" />
           </div>
         )}
-        
-        {/* Manual door controls */}
-        <div className="mt-6 flex justify-center gap-4">
-          <Button 
-            variant="outline" 
-            onClick={handleOpenDoor}
-            disabled={status !== "closed"}
-            className="w-28"
-          >
-            <DoorOpen className="mr-2 h-4 w-4" /> Open Door
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            onClick={handleCloseDoor}
-            disabled={status !== "open"}
-            className="w-28"
-          >
-            <DoorClosed className="mr-2 h-4 w-4" /> Close Door
-          </Button>
-        </div>
       </CardContent>
       <CardFooter className="px-6 py-3 bg-muted/20 text-xs text-muted-foreground">
         <div className="w-full flex items-center justify-between">

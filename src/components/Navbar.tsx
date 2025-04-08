@@ -1,73 +1,52 @@
 
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import ThemeToggle from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu } from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
-import Logo from "@/components/Logo";
+import { Barcode, LogOut, User } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
-  
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-    
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-  
+  const { isAuthenticated, logout } = useAuth();
+
   return (
-    <header
-      className={`sticky top-0 z-50 w-full transition-all ${
-        isScrolled ? "bg-background/80 backdrop-blur-sm shadow-sm" : "bg-background"
-      }`}
-    >
+    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-sm">
       <div className="container flex h-16 items-center justify-between">
-        <div className="flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-2">
-            <Logo />
+        <div className="flex items-center gap-2">
+          <Barcode className="h-6 w-6 text-primary" />
+          <Link to="/" className="text-xl font-semibold">
+            SmartGate
           </Link>
         </div>
-        
-        <div className="hidden md:flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-1">
-            <Link to="/">
-              <Button variant="ghost">Home</Button>
-            </Link>
-            <Link to="/admin">
-              <Button variant="ghost">Admin</Button>
-            </Link>
-          </div>
+
+        <nav className="hidden md:flex items-center gap-6">
+          <Link to="/" className="text-sm font-medium hover:text-primary">
+            Dashboard
+          </Link>
+          <Link to="/admin" className="text-sm font-medium hover:text-primary">
+            Admin
+          </Link>
+        </nav>
+
+        <div className="flex items-center gap-2">
           <ThemeToggle />
-        </div>
-        
-        <div className="md:hidden flex items-center gap-4">
-          <ThemeToggle />
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle menu</span>
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" className="text-sm gap-2">
+                <User className="h-4 w-4" />
+                Admin
               </Button>
-            </SheetTrigger>
-            <SheetContent side="right">
-              <nav className="flex flex-col gap-4">
-                <Link to="/">
-                  <Button variant="ghost" className="w-full justify-start">
-                    Home
-                  </Button>
-                </Link>
-                <Link to="/admin">
-                  <Button variant="ghost" className="w-full justify-start">
-                    Admin
-                  </Button>
-                </Link>
-              </nav>
-            </SheetContent>
-          </Sheet>
+              <Button size="sm" variant="ghost" onClick={logout} className="text-sm gap-2">
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            </div>
+          ) : (
+            <Link to="/admin">
+              <Button size="sm" variant="outline" className="text-sm">
+                Login
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     </header>

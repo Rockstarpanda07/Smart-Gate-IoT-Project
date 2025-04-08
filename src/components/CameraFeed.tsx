@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Camera, CameraOff, Scan, CircleCheck, CircleX } from "lucide-react";
+import { Camera, CameraOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -8,23 +8,29 @@ interface CameraFeedProps {
   isActive?: boolean;
 }
 
-type VerificationStep = "idle" | "barcode" | "face" | "success" | "failed";
-
 const CameraFeed = ({ isActive = true }: CameraFeedProps) => {
   const [status, setStatus] = useState<"online" | "offline" | "processing">("offline");
   const [recognizedFace, setRecognizedFace] = useState<string | null>(null);
   const [lastActivity, setLastActivity] = useState<string | null>(null);
-  const [verificationStep, setVerificationStep] = useState<VerificationStep>("idle");
-  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
-  const [studentId, setStudentId] = useState<string | null>(null);
   
   useEffect(() => {
     if (isActive) {
       setStatus("online");
       
-      // Simulate verification process every 20 seconds
+      // Simulate processing activity every 20 seconds
       const interval = setInterval(() => {
-        simulateVerificationProcess();
+        setStatus("processing");
+        
+        // Simulate recognition after 2 seconds
+        setTimeout(() => {
+          const timestamp = new Date().toLocaleTimeString();
+          const students = ["Alex Johnson", "Maria Garcia", "James Wilson", "Sophia Chen"];
+          const randomStudent = students[Math.floor(Math.random() * students.length)];
+          
+          setRecognizedFace(randomStudent);
+          setLastActivity(timestamp);
+          setStatus("online");
+        }, 2000);
       }, 20000);
       
       return () => clearInterval(interval);
@@ -32,66 +38,6 @@ const CameraFeed = ({ isActive = true }: CameraFeedProps) => {
       setStatus("offline");
     }
   }, [isActive]);
-
-  const simulateVerificationProcess = () => {
-    // Only start if currently idle
-    if (verificationStep !== "idle" || status !== "online") return;
-    
-    // Generate a random student ID
-    const year = new Date().getFullYear();
-    const randomId = `${String(year).slice(-2)}110${Math.floor(Math.random() * 900) + 100}`;
-    setStudentId(randomId);
-    
-    // Start with barcode scan
-    setStatus("processing");
-    setVerificationStep("barcode");
-    setVerificationMessage("Scanning barcode...");
-    
-    // After 1.5 seconds, simulate barcode detected
-    setTimeout(() => {
-      setVerificationMessage(`Barcode detected: Student ID ${randomId}`);
-      
-      // After 1 second, move to face scanning
-      setTimeout(() => {
-        setVerificationStep("face");
-        setVerificationMessage("Scanning face... Please look at the camera");
-        
-        // After 2 seconds, complete face scan
-        setTimeout(() => {
-          const timestamp = new Date().toLocaleTimeString();
-          const students = ["Alex Johnson", "Maria Garcia", "James Wilson", "Sophia Chen"];
-          const randomStudent = students[Math.floor(Math.random() * students.length)];
-          setRecognizedFace(randomStudent);
-          setLastActivity(timestamp);
-          
-          // Randomly decide if verification passes or fails (80% success rate)
-          const success = Math.random() < 0.8;
-          
-          if (success) {
-            setVerificationStep("success");
-            setVerificationMessage(`Verification successful: Welcome, ${randomStudent}!`);
-            
-            // After 3 seconds, reset to idle
-            setTimeout(() => {
-              setVerificationStep("idle");
-              setVerificationMessage(null);
-              setStatus("online");
-            }, 3000);
-          } else {
-            setVerificationStep("failed");
-            setVerificationMessage("Verification failed: Face does not match student ID");
-            
-            // After 3 seconds, reset to idle
-            setTimeout(() => {
-              setVerificationStep("idle");
-              setVerificationMessage(null);
-              setStatus("online");
-            }, 3000);
-          }
-        }, 2000);
-      }, 1000);
-    }, 1500);
-  };
 
   return (
     <Card className="overflow-hidden shadow-md">
@@ -121,40 +67,12 @@ const CameraFeed = ({ isActive = true }: CameraFeedProps) => {
                   <div className="camera-overlay animate-fade-in">
                     <div className="bg-background/20 backdrop-blur-sm p-4 rounded-lg">
                       <div className="text-white text-center">
-                        {verificationStep === "barcode" && (
-                          <div className="flex flex-col items-center">
-                            <Scan className="w-10 h-10 mb-2 animate-pulse" />
-                            <div className="mb-2">{verificationMessage}</div>
-                          </div>
-                        )}
-                        {verificationStep === "face" && (
-                          <div className="flex flex-col items-center">
-                            <div className="w-20 h-20 rounded-full border-2 border-white mb-2 flex items-center justify-center relative">
-                              <div className="w-16 h-16 rounded-full bg-white/20 animate-pulse"></div>
-                              <div className="absolute w-full h-1 bg-primary animate-scan"></div>
-                            </div>
-                            <div className="mb-2">{verificationMessage}</div>
-                          </div>
-                        )}
-                        {verificationStep === "success" && (
-                          <div className="flex flex-col items-center">
-                            <CircleCheck className="w-10 h-10 mb-2 text-success" />
-                            <div className="mb-2">{verificationMessage}</div>
-                          </div>
-                        )}
-                        {verificationStep === "failed" && (
-                          <div className="flex flex-col items-center">
-                            <CircleX className="w-10 h-10 mb-2 text-destructive" />
-                            <div className="mb-2">{verificationMessage}</div>
-                          </div>
-                        )}
-                        {["barcode", "face"].includes(verificationStep) && (
-                          <div className="flex items-center justify-center space-x-1">
-                            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                            <div className="w-2 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: "0.2s" }}></div>
-                            <div className="w-2 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: "0.4s" }}></div>
-                          </div>
-                        )}
+                        <div className="mb-2">Scanning...</div>
+                        <div className="flex items-center justify-center space-x-1">
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: "0.2s" }}></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: "0.4s" }}></div>
+                        </div>
                       </div>
                     </div>
                   </div>
