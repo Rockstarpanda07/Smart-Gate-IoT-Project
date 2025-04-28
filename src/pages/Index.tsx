@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import CameraFeed from "@/components/CameraFeed";
 import DoorStatus from "@/components/DoorStatus";
@@ -8,8 +8,45 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { AreaChart, UserRound, Clock } from "lucide-react";
 
+// Define the API base URL - replace with your Raspberry Pi's IP address
+const API_BASE_URL = "http://your-raspberry-pi-ip:5000";
+
+interface StatsData {
+  totalStudents: number;
+  todaysEntries: number;
+  thisWeek: number;
+}
+
 const Index = () => {
   const [activeCamera, setActiveCamera] = useState(true);
+  const [stats, setStats] = useState<StatsData>({
+    totalStudents: 0,
+    todaysEntries: 0,
+    thisWeek: 0
+  });
+
+  useEffect(() => {
+    // Fetch statistics from API
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/stats`);
+        if (response.ok) {
+          const data: StatsData = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error("Error fetching statistics:", error);
+      }
+    };
+    
+    // Initial fetch
+    fetchStats();
+    
+    // Set up interval for regular updates
+    const interval = setInterval(fetchStats, 30000); // Update every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -36,7 +73,7 @@ const Index = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Students</p>
-                  <p className="text-2xl font-bold">102</p>
+                  <p className="text-2xl font-bold">{stats.totalStudents}</p>
                 </div>
               </CardContent>
             </Card>
@@ -48,7 +85,7 @@ const Index = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Today's Entries</p>
-                  <p className="text-2xl font-bold">48</p>
+                  <p className="text-2xl font-bold">{stats.todaysEntries}</p>
                 </div>
               </CardContent>
             </Card>
@@ -60,7 +97,7 @@ const Index = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">This Week</p>
-                  <p className="text-2xl font-bold">324</p>
+                  <p className="text-2xl font-bold">{stats.thisWeek}</p>
                 </div>
               </CardContent>
             </Card>

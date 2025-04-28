@@ -3,35 +3,61 @@ import { useState, useEffect } from "react";
 import { Camera, CameraOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
 
 interface CameraFeedProps {
   isActive?: boolean;
+}
+
+interface RecognitionStatus {
+  recognizedFace: string | null;
+  lastActivity: string | null;
+  status: "online" | "offline" | "processing";
 }
 
 const CameraFeed = ({ isActive = true }: CameraFeedProps) => {
   const [status, setStatus] = useState<"online" | "offline" | "processing">("offline");
   const [recognizedFace, setRecognizedFace] = useState<string | null>(null);
   const [lastActivity, setLastActivity] = useState<string | null>(null);
+  const [cameraImage, setCameraImage] = useState<string | null>(null);
   
   useEffect(() => {
     if (isActive) {
       setStatus("online");
       
-      // Simulate processing activity every 20 seconds
-      const interval = setInterval(() => {
-        setStatus("processing");
-        
-        // Simulate recognition after 2 seconds
-        setTimeout(() => {
-          const timestamp = new Date().toLocaleTimeString();
-          const students = ["Alex Johnson", "Maria Garcia", "James Wilson", "Sophia Chen"];
-          const randomStudent = students[Math.floor(Math.random() * students.length)];
+      // Fetch camera snapshot and recognition status at regular intervals
+      const fetchCameraData = async () => {
+        try {
+          // Fetch camera snapshot
+          const imageResponse = await fetch(buildApiUrl(API_ENDPOINTS.CAMERA_SNAPSHOT));
+          if (imageResponse.ok) {
+            const imageData = await imageResponse.json();
+            setCameraImage(imageData.image);
+          }
           
-          setRecognizedFace(randomStudent);
-          setLastActivity(timestamp);
-          setStatus("online");
-        }, 2000);
-      }, 20000);
+          // Fetch recognition status
+          const statusResponse = await fetch(buildApiUrl(API_ENDPOINTS.RECOGNITION_STATUS));
+          if (statusResponse.ok) {
+            const statusData: RecognitionStatus = await statusResponse.json();
+            setStatus(statusData.status);
+            if (statusData.recognizedFace) {
+              setRecognizedFace(statusData.recognizedFace);
+            }
+            if (statusData.lastActivity) {
+              setLastActivity(statusData.lastActivity);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching camera data:", error);
+          setStatus("offline");
+        }
+      };
+      
+      // Initial fetch
+      fetchCameraData();
+      
+      // Set up interval for regular updates
+      const interval = setInterval(fetchCameraData, 2000); // Update every 2 seconds
       
       return () => clearInterval(interval);
     } else {
@@ -61,8 +87,17 @@ const CameraFeed = ({ isActive = true }: CameraFeedProps) => {
         <div className="camera-container">
           {status !== "offline" ? (
             <>
-              {/* Placeholder for actual camera feed */}
+              {/* Display actual camera feed from API */}
               <div className="camera-feed bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                {cameraImage ? (
+                  <img 
+                    src={cameraImage} 
+                    alt="Live camera feed" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-white text-center">Loading camera feed...</div>
+                )}
                 {status === "processing" && (
                   <div className="camera-overlay animate-fade-in">
                     <div className="bg-background/20 backdrop-blur-sm p-4 rounded-lg">

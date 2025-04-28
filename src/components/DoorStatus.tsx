@@ -4,6 +4,13 @@ import { DoorClosed, DoorOpen, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
+
+interface DoorStatusData {
+  status: "closed" | "opening" | "open" | "closing" | "alert";
+  lastOpened: string | null;
+  autoCloseTimer: number;
+}
 
 const DoorStatus = () => {
   const [status, setStatus] = useState<"closed" | "opening" | "open" | "closing" | "alert">("closed");
@@ -12,10 +19,26 @@ const DoorStatus = () => {
   const [autoCloseTimer, setAutoCloseTimer] = useState(0);
   
   useEffect(() => {
-    // Simulate door activity every 30 seconds
-    const interval = setInterval(() => {
-      simulateDoorActivity();
-    }, 30000);
+    // Fetch door status from API at regular intervals
+    const fetchDoorStatus = async () => {
+      try {
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.DOOR_STATUS));
+        if (response.ok) {
+          const data: DoorStatusData = await response.json();
+          setStatus(data.status);
+          setLastOpened(data.lastOpened);
+          setAutoCloseTimer(data.autoCloseTimer);
+        }
+      } catch (error) {
+        console.error("Error fetching door status:", error);
+      }
+    };
+    
+    // Initial fetch
+    fetchDoorStatus();
+    
+    // Set up interval for regular updates
+    const interval = setInterval(fetchDoorStatus, 1000); // Update every second
     
     return () => clearInterval(interval);
   }, []);
@@ -30,9 +53,6 @@ const DoorStatus = () => {
         setProgress(prev => {
           if (prev >= 100) {
             clearInterval(timer!);
-            setStatus("open");
-            setLastOpened(new Date().toLocaleTimeString());
-            setAutoCloseTimer(10);
             return 100;
           }
           return prev + 5;
@@ -45,44 +65,17 @@ const DoorStatus = () => {
         setProgress(prev => {
           if (prev <= 0) {
             clearInterval(timer!);
-            setStatus("closed");
             return 0;
           }
           return prev - 5;
         });
       }, 150);
-    } else if (status === "open") {
-      // Auto close countdown
-      timer = setInterval(() => {
-        setAutoCloseTimer(prev => {
-          if (prev <= 0) {
-            clearInterval(timer!);
-            setStatus("closing");
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     }
     
     return () => {
       if (timer) clearInterval(timer);
     };
   }, [status]);
-  
-  const simulateDoorActivity = () => {
-    if (status === "closed" || status === "alert") {
-      // Simulate door opening
-      setStatus("opening");
-      
-      // 10% chance of alert (unauthorized access attempt)
-      if (Math.random() < 0.1) {
-        setTimeout(() => {
-          setStatus("alert");
-        }, 3000);
-      }
-    }
-  };
   
   return (
     <Card className="overflow-hidden shadow-md">

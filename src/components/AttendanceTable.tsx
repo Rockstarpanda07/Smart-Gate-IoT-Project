@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle2, AlertTriangle, XCircle, Barcode, User, Search, Filter } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
@@ -12,10 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { AttendanceRecord, mockAttendance } from "@/lib/mockData";
+import { AttendanceRecord } from "@/lib/mockData";
+import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
 
 const AttendanceTable = () => {
-  const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>(mockAttendance);
+  const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<Record<string, boolean>>({
     present: true,
@@ -27,6 +28,29 @@ const AttendanceTable = () => {
     barcode: true,
     manual: true,
   });
+  
+  useEffect(() => {
+    // Fetch attendance data from API
+    const fetchAttendanceData = async () => {
+      try {
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.ATTENDANCE));
+        if (response.ok) {
+          const data: AttendanceRecord[] = await response.json();
+          setAttendanceData(data);
+        }
+      } catch (error) {
+        console.error("Error fetching attendance data:", error);
+      }
+    };
+    
+    // Initial fetch
+    fetchAttendanceData();
+    
+    // Set up interval for regular updates
+    const interval = setInterval(fetchAttendanceData, 10000); // Update every 10 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
 
   const filteredData = attendanceData.filter((record) => {
     const matchesSearch =
