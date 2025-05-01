@@ -11,8 +11,8 @@ import json
 import time
 import sys
 
-# API base URL - change this to your Raspberry Pi's IP if testing remotely
-API_BASE_URL = "http://localhost:5000"
+# API base URL - using Raspberry Pi's IP address
+API_BASE_URL = "http://192.168.187.113:5000"
 
 # Color codes for terminal output
 COLORS = {

@@ -8,8 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { AreaChart, UserRound, Clock } from "lucide-react";
 
-// Define the API base URL - replace with your Raspberry Pi's IP address
-const API_BASE_URL = "http://your-raspberry-pi-ip:5000";
+import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
 
 interface StatsData {
   totalStudents: number;
@@ -29,10 +28,22 @@ const Index = () => {
     // Fetch statistics from API
     const fetchStats = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/stats`);
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.STATS));
         if (response.ok) {
-          const data: StatsData = await response.json();
-          setStats(data);
+          const data = await response.json();
+          // Validate data structure before updating state
+          if (data && typeof data === 'object') {
+            const validatedData: StatsData = {
+              totalStudents: typeof data.totalStudents === 'number' ? data.totalStudents : 0,
+              todaysEntries: typeof data.todaysEntries === 'number' ? data.todaysEntries : 0,
+              thisWeek: typeof data.thisWeek === 'number' ? data.thisWeek : 0
+            };
+            setStats(validatedData);
+          } else {
+            console.error("Invalid statistics data format");
+          }
+        } else {
+          console.error("Failed to fetch statistics:", response.statusText);
         }
       } catch (error) {
         console.error("Error fetching statistics:", error);
@@ -103,36 +114,9 @@ const Index = () => {
             </Card>
           </div>
           
-          {/* Attendance Logs */}
+          {/* Attendance Table */}
           <div className="md:col-span-3">
-            <Tabs defaultValue="attendance" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="attendance">Attendance Logs</TabsTrigger>
-                <TabsTrigger value="activity">Activity History</TabsTrigger>
-                <TabsTrigger value="alerts">Alerts</TabsTrigger>
-              </TabsList>
-              <TabsContent value="attendance" className="space-y-4">
-                <AttendanceTable />
-              </TabsContent>
-              <TabsContent value="activity">
-                <Card>
-                  <CardContent className="p-6">
-                    <p className="text-muted-foreground text-center py-8">
-                      Activity history will be shown here
-                    </p>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              <TabsContent value="alerts">
-                <Card>
-                  <CardContent className="p-6">
-                    <p className="text-muted-foreground text-center py-8">
-                      System alerts will be shown here
-                    </p>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+            <AttendanceTable />
           </div>
         </div>
       </main>

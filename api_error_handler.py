@@ -82,21 +82,20 @@ def retry_operation(max_attempts=3, delay=1):
     return decorator
 
 # Database connection checker
-def check_db_connection(db_connection):
-    """Check if the database connection is alive and reconnect if needed"""
+def check_db_connection(connection_pool):
+    """Check if the database connection pool is working"""
+    if connection_pool is None:
+        return False
+        
     try:
-        # Try a simple query to check connection
-        cursor = db_connection.cursor()
+        # Get a connection from the pool
+        connection = connection_pool.get_connection()
+        cursor = connection.cursor()
         cursor.execute("SELECT 1")
         cursor.fetchone()
         cursor.close()
+        connection.close()  # Return to pool
         return True
     except Exception as e:
-        logger.warning(f"Database connection check failed: {str(e)}")
-        try:
-            logger.info("Attempting to reconnect to database...")
-            db_connection.ping(reconnect=True, attempts=3, delay=1)
-            return True
-        except Exception as reconnect_error:
-            logger.error(f"Database reconnection failed: {str(reconnect_error)}")
-            return False
+        logging.error(f"Database connection check failed: {e}")
+        return False

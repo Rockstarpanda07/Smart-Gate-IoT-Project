@@ -1,7 +1,7 @@
 // API Configuration
 
-// Replace this with your Raspberry Pi's IP address when deploying
-export const API_BASE_URL = "http://localhost:5000";
+// Raspberry Pi's IP address for API connection
+export const API_BASE_URL = "http://192.168.187.111:5000";
 
 // Helper function to build API endpoints
 export const buildApiUrl = (endpoint: string): string => {
@@ -15,5 +15,6 @@ export const API_ENDPOINTS = {
   DOOR_STATUS: "/api/door-status",
   RECOGNITION_STATUS: "/api/recognition-status",
   ATTENDANCE: "/api/attendance",
-  STATS: "/api/stats"
+  STATS: "/api/stats",
+  STUDENTS: "/api/students"
 };

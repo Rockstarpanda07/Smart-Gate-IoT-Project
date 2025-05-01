@@ -12,8 +12,25 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { AttendanceRecord } from "@/lib/mockData";
 import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
+
+interface Student {
+  id: string;
+  name: string;
+  rollno: string;
+  studentId: string;
+  course: string;
+}
+
+interface AttendanceRecord {
+  studentId: string;
+  studentName: string;
+  course: string;
+  date: string;
+  timestamp: string;
+  status: 'present' | 'unauthorized' | 'failed' | 'absent';
+  verificationMethod: string;
+}
 
 const AttendanceTable = () => {
   const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
@@ -22,12 +39,15 @@ const AttendanceTable = () => {
     present: true,
     unauthorized: true,
     failed: true,
+    absent: true, // Added absent status to filter
   });
   const [methodFilter, setMethodFilter] = useState<Record<string, boolean>>({
     face: true,
     barcode: true,
     manual: true,
+    none: true,
   });
+  const [students, setStudents] = useState<Student[]>([]);
   
   useEffect(() => {
     // Fetch attendance data from API
@@ -35,27 +55,96 @@ const AttendanceTable = () => {
       try {
         const response = await fetch(buildApiUrl(API_ENDPOINTS.ATTENDANCE));
         if (response.ok) {
-          const data: AttendanceRecord[] = await response.json();
-          setAttendanceData(data);
+          const rawData = await response.json();
+          
+          // Validate data is an array before processing
+          if (Array.isArray(rawData)) {
+            // Validate and transform each record
+            const validatedData: AttendanceRecord[] = rawData.map(item => ({
+              // Fix: Use proper field mapping with fallbacks
+              studentName: typeof item.name === 'string' ? item.name : 'Unknown',
+              studentId: typeof item.rollno === 'string' ? item.rollno : 
+                         typeof item.studentId === 'string' ? item.studentId : 'N/A',
+              course: typeof item.course === 'string' ? item.course : '',
+              date: typeof item.date === 'string' ? item.date : 'N/A',
+              timestamp: typeof item.timestamp === 'string' ? item.timestamp : 'N/A',
+              status: ['present', 'unauthorized', 'failed', 'absent'].includes(item.status) ? 
+                      item.status : 'failed',
+              verificationMethod: ['face', 'barcode', 'manual', 'none'].includes(item.verificationMethod) ? 
+                item.verificationMethod : 'manual'
+            }));
+            
+            setAttendanceData(validatedData);
+          } else {
+            console.error("Invalid attendance data format: expected an array");
+            setAttendanceData([]);
+          }
+        } else {
+          console.error("Failed to fetch attendance data:", response.statusText);
         }
       } catch (error) {
         console.error("Error fetching attendance data:", error);
+        setAttendanceData([]);
       }
     };
     
-    // Initial fetch
+    // Fetch students data from API
+    const fetchStudents = async () => {
+      try {
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.STUDENTS));
+        if (response.ok) {
+          const rawData = await response.json();
+          
+          if (Array.isArray(rawData)) {
+            const validatedStudents = rawData.map((student: any) => ({
+              id: student.id ? student.id.toString() : 'unknown',
+              name: typeof student.name === 'string' ? student.name : 'Unknown',
+              rollno: typeof student.rollno === 'string' ? student.rollno : 'N/A',
+              studentId: typeof student.rollno === 'string' ? student.rollno : 
+                         typeof student.studentId === 'string' ? student.studentId : 'N/A',
+              course: typeof student.course === 'string' ? student.course : ""
+            }));
+            setStudents(validatedStudents);
+          } else {
+            console.error("Invalid students data format: expected an array");
+            setStudents([]);
+          }
+        } else {
+          console.error("Failed to fetch students:", response.statusText);
+          setStudents([]);
+        }
+      } catch (error) {
+        console.error("Error fetching students:", error);
+        setStudents([]);
+      }
+    };
     fetchAttendanceData();
-    
-    // Set up interval for regular updates
-    const interval = setInterval(fetchAttendanceData, 10000); // Update every 10 seconds
-    
+    fetchStudents();
+    const interval = setInterval(() => {
+      fetchAttendanceData();
+      fetchStudents();
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const filteredData = attendanceData.filter((record) => {
+  const mergedData = students.map(student => {
+    const attendanceRecord = attendanceData.find(a => a.studentId === student.studentId || a.studentId === student.rollno);
+    return {
+      studentId: student.studentId,
+      studentName: student.name,
+      course: student.course,
+      date: attendanceRecord?.date || 'No record',
+      timestamp: attendanceRecord?.timestamp || 'N/A',
+      status: attendanceRecord?.status || 'absent',
+      verificationMethod: attendanceRecord?.verificationMethod || 'none'
+    };
+  });
+
+  const filteredData = mergedData.filter((record) => {
     const matchesSearch =
       record.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.studentId.toLowerCase().includes(searchTerm.toLowerCase());
+      record.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.course.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter[record.status];
     const matchesMethod = methodFilter[record.verificationMethod];
@@ -88,14 +177,14 @@ const AttendanceTable = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-9">
                     <Filter className="mr-2 h-4 w-4" />
-                    <span>Status</span>
+                    Status
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuContent align="end">
                   <DropdownMenuCheckboxItem
                     checked={statusFilter.present}
                     onCheckedChange={(checked) =>
-                      setStatusFilter((prev) => ({ ...prev, present: !!checked }))
+                      setStatusFilter({ ...statusFilter, present: checked })
                     }
                   >
                     Present
@@ -103,7 +192,7 @@ const AttendanceTable = () => {
                   <DropdownMenuCheckboxItem
                     checked={statusFilter.unauthorized}
                     onCheckedChange={(checked) =>
-                      setStatusFilter((prev) => ({ ...prev, unauthorized: !!checked }))
+                      setStatusFilter({ ...statusFilter, unauthorized: checked })
                     }
                   >
                     Unauthorized
@@ -111,10 +200,18 @@ const AttendanceTable = () => {
                   <DropdownMenuCheckboxItem
                     checked={statusFilter.failed}
                     onCheckedChange={(checked) =>
-                      setStatusFilter((prev) => ({ ...prev, failed: !!checked }))
+                      setStatusFilter({ ...statusFilter, failed: checked })
                     }
                   >
                     Failed
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={statusFilter.absent}
+                    onCheckedChange={(checked) =>
+                      setStatusFilter({ ...statusFilter, absent: checked })
+                    }
+                  >
+                    Absent/No Record
                   </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -123,14 +220,14 @@ const AttendanceTable = () => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-9">
                     <Filter className="mr-2 h-4 w-4" />
-                    <span>Method</span>
+                    Method
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuContent align="end">
                   <DropdownMenuCheckboxItem
                     checked={methodFilter.face}
                     onCheckedChange={(checked) =>
-                      setMethodFilter((prev) => ({ ...prev, face: !!checked }))
+                      setMethodFilter({ ...methodFilter, face: checked })
                     }
                   >
                     Face Recognition
@@ -138,18 +235,26 @@ const AttendanceTable = () => {
                   <DropdownMenuCheckboxItem
                     checked={methodFilter.barcode}
                     onCheckedChange={(checked) =>
-                      setMethodFilter((prev) => ({ ...prev, barcode: !!checked }))
+                      setMethodFilter({ ...methodFilter, barcode: checked })
                     }
                   >
-                    Barcode
+                    Barcode Scan
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={methodFilter.manual}
                     onCheckedChange={(checked) =>
-                      setMethodFilter((prev) => ({ ...prev, manual: !!checked }))
+                      setMethodFilter({ ...methodFilter, manual: checked })
                     }
                   >
-                    Manual
+                    Manual Entry
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={methodFilter.none}
+                    onCheckedChange={(checked) =>
+                      setMethodFilter({ ...methodFilter, none: checked })
+                    }
+                  >
+                    None
                   </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -166,75 +271,44 @@ const AttendanceTable = () => {
                 <TableHead>ID</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Time</TableHead>
-                <TableHead>Method</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Method</TableHead>
+              </TableRow>
+              <TableRow>
+                <TableHead colSpan={6} className="bg-muted/50 text-muted-foreground text-xs">
+                  All Registered Students
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredData.length > 0 ? (
-                filteredData.slice(0, 10).map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell>{record.studentName}</TableCell>
-                    <TableCell>{record.studentId}</TableCell>
-                    <TableCell>{record.date}</TableCell>
-                    <TableCell>{record.timestamp}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {record.verificationMethod === "face" ? (
-                          <Badge variant="outline" className="bg-info/10 text-info border-info/30 px-2 py-0 flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            <span className="text-xs">Face</span>
-                          </Badge>
-                        ) : record.verificationMethod === "barcode" ? (
-                          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 px-2 py-0 flex items-center gap-1">
-                            <Barcode className="h-3 w-3" />
-                            <span className="text-xs">Barcode</span>
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-muted/40 text-muted-foreground border-muted/30 px-2 py-0">
-                            <span className="text-xs">Manual</span>
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {record.status === "present" ? (
-                        <Badge variant="outline" className="bg-success/10 text-success border-success/30 flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          <span className="text-xs">Present</span>
-                        </Badge>
-                      ) : record.status === "unauthorized" ? (
-                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span className="text-xs">Unauthorized</span>
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted/30 flex items-center gap-1">
-                          <XCircle className="h-3 w-3" />
-                          <span className="text-xs">Failed</span>
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
+              {/* Use filteredData instead of students to respect filters */}
+              {filteredData.length > 0 ? filteredData.map((record, idx) => (
+                <TableRow key={record.studentId + idx}>
+                  <TableCell>{record.studentName}</TableCell>
+                  <TableCell>{record.studentId}</TableCell>
+                  <TableCell>{record.date}</TableCell>
+                  <TableCell>{record.timestamp}</TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant={record.status === 'unauthorized' ? 'destructive' : 'secondary'}
+                      className={record.status === 'present' ? 'bg-green-500 text-white border-transparent hover:bg-green-600' : ''}
+                    >
+                      {record.status === 'absent' ? 'No Record' : 
+                       record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{record.verificationMethod === 'none' ? '-' : record.verificationMethod}</TableCell>
+                </TableRow>
+              )) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-4">
-                    No attendance records found
+                  <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                    No matching records found
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
-        
-        {filteredData.length > 10 && (
-          <div className="flex items-center justify-center p-4 border-t">
-            <Button variant="outline" size="sm">
-              Load More
-            </Button>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

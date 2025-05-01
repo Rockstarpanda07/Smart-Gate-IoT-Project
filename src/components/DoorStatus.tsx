@@ -24,10 +24,31 @@ const DoorStatus = () => {
       try {
         const response = await fetch(buildApiUrl(API_ENDPOINTS.DOOR_STATUS));
         if (response.ok) {
-          const data: DoorStatusData = await response.json();
-          setStatus(data.status);
-          setLastOpened(data.lastOpened);
-          setAutoCloseTimer(data.autoCloseTimer);
+          const rawData = await response.json();
+          
+          // Validate data structure before updating state
+          if (rawData && typeof rawData === 'object') {
+            // Validate status field
+            const validStatus = ['closed', 'opening', 'open', 'closing', 'alert'].includes(rawData.status) ? 
+              rawData.status : 'closed';
+            setStatus(validStatus);
+            
+            // Validate lastOpened field
+            if (typeof rawData.lastOpened === 'string' || rawData.lastOpened === null) {
+              setLastOpened(rawData.lastOpened);
+            }
+            
+            // Validate autoCloseTimer field
+            if (typeof rawData.autoCloseTimer === 'number') {
+              setAutoCloseTimer(rawData.autoCloseTimer);
+            } else {
+              setAutoCloseTimer(0);
+            }
+          } else {
+            console.error("Invalid door status data format");
+          }
+        } else {
+          console.error("Failed to fetch door status:", response.statusText);
         }
       } catch (error) {
         console.error("Error fetching door status:", error);

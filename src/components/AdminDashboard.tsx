@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Users, PlusCircle, Pencil, Trash, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
@@ -14,10 +14,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Student, mockStudents } from "@/lib/mockData";
+import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
+
+interface Student {
+  id: string;
+  name: string;
+  studentId: string;
+  course: string;
+}
 
 const AdminDashboard = () => {
-  const [students, setStudents] = useState<Student[]>(mockStudents);
+  const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -27,6 +34,40 @@ const AdminDashboard = () => {
     studentId: "",
     course: ""
   });
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  const fetchStudents = async () => {
+    try {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.STUDENTS));
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Validate data is an array before processing
+        if (Array.isArray(data)) {
+          const validatedStudents = data.map((student: any) => ({
+            id: student.id ? student.id.toString() : 'unknown',
+            name: typeof student.name === 'string' ? student.name : 'Unknown',
+            studentId: typeof student.rollno === 'string' ? student.rollno : 'N/A',
+            course: typeof student.course === 'string' ? student.course : ""
+          }));
+          setStudents(validatedStudents);
+          console.log("Fetched students:", validatedStudents); // Add this line for debugging
+        } else {
+          console.error("Invalid students data format: expected an array");
+          setStudents([]);
+        }
+      } else {
+        console.error("Failed to fetch students:", response.statusText);
+        setStudents([]);
+      }
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      setStudents([]);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -67,33 +108,70 @@ const AdminDashboard = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (currentStudent) {
-      // Edit existing student
-      setStudents(students.map(student => 
-        student.id === currentStudent.id 
-          ? { ...student, ...formData } 
-          : student
-      ));
-    } else {
-      // Add new student
-      const newStudent: Student = {
-        id: `${Date.now()}`,
-        name: formData.name,
-        studentId: formData.studentId,
-        course: formData.course
-      };
-      setStudents([...students, newStudent]);
+    // Validate form data before submission
+    if (!formData.name.trim() || !formData.studentId.trim()) {
+      console.error('Name and Student ID are required fields');
+      alert('Please fill in both Name and Student ID.');
+      return;
     }
     
-    setIsDialogOpen(false);
+    const studentData = {
+      name: formData.name.trim(),
+      rollno: formData.studentId.trim(),
+      course: formData.course.trim()
+    };
+
+    try {
+      let response;
+      const url = currentStudent
+        ? buildApiUrl(`${API_ENDPOINTS.STUDENTS}/${currentStudent.id}`)
+        : buildApiUrl(API_ENDPOINTS.STUDENTS);
+      
+      const method = currentStudent ? 'PUT' : 'POST';
+
+      response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(studentData)
+      });
+
+      if (response.ok) {
+        await fetchStudents();
+        setIsDialogOpen(false);
+        alert(`Student successfully ${currentStudent ? 'updated' : 'added'}!`);
+      } else {
+        // Parse the error response
+        const errorData = await response.json();
+        
+        // Check for duplicate rollno error
+        if (response.status === 500 && errorData.message && errorData.message.includes("Duplicate entry")) {
+          alert(`Error: Student ID '${formData.studentId}' already exists. Please use a different ID.`);
+        } else {
+          console.error(`Failed to ${currentStudent ? 'update' : 'add'} student. Status: ${response.status} ${response.statusText}. Response:`, errorData);
+          alert(`Failed to ${currentStudent ? 'update' : 'add'} student: ${errorData.message || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error(`Error saving student:`, error);
+      alert('An unexpected error occurred while saving the student. Please check the console.');
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (currentStudent) {
-      setStudents(students.filter(student => student.id !== currentStudent.id));
+      try {
+        const response = await fetch(buildApiUrl(`${API_ENDPOINTS.STUDENTS}/${currentStudent.id}`), {
+          method: 'DELETE'
+        });
+        if (response.ok) {
+          await fetchStudents();
+        }
+      } catch (error) {
+        console.error('Error deleting student:', error);
+      }
       setIsDeleteDialogOpen(false);
     }
   };

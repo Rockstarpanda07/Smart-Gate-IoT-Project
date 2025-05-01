@@ -32,20 +32,44 @@ const CameraFeed = ({ isActive = true }: CameraFeedProps) => {
           const imageResponse = await fetch(buildApiUrl(API_ENDPOINTS.CAMERA_SNAPSHOT));
           if (imageResponse.ok) {
             const imageData = await imageResponse.json();
-            setCameraImage(imageData.image);
+            // Validate image data before setting state
+            if (imageData && typeof imageData === 'object' && typeof imageData.image === 'string') {
+              setCameraImage(imageData.image);
+            } else {
+              console.error("Invalid camera image data format");
+            }
+          } else {
+            console.error("Failed to fetch camera image:", imageResponse.statusText);
           }
           
           // Fetch recognition status
           const statusResponse = await fetch(buildApiUrl(API_ENDPOINTS.RECOGNITION_STATUS));
           if (statusResponse.ok) {
-            const statusData: RecognitionStatus = await statusResponse.json();
-            setStatus(statusData.status);
-            if (statusData.recognizedFace) {
-              setRecognizedFace(statusData.recognizedFace);
+            const rawData = await statusResponse.json();
+            
+            // Validate status data before updating state
+            if (rawData && typeof rawData === 'object') {
+              const validStatus = ['online', 'offline', 'processing'].includes(rawData.status) ? 
+                rawData.status : 'offline';
+              
+              setStatus(validStatus);
+              
+              // Only update recognizedFace if it's a valid string
+              if (typeof rawData.recognizedFace === 'string') {
+                setRecognizedFace(rawData.recognizedFace);
+              }
+              
+              // Only update lastActivity if it's a valid string
+              if (typeof rawData.lastActivity === 'string') {
+                setLastActivity(rawData.lastActivity);
+              }
+            } else {
+              console.error("Invalid recognition status data format");
+              setStatus("offline");
             }
-            if (statusData.lastActivity) {
-              setLastActivity(statusData.lastActivity);
-            }
+          } else {
+            console.error("Failed to fetch recognition status:", statusResponse.statusText);
+            setStatus("offline");
           }
         } catch (error) {
           console.error("Error fetching camera data:", error);
