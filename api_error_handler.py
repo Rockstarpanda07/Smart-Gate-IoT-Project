@@ -97,5 +97,6 @@ def check_db_connection(connection_pool):
         connection.close()  # Return to pool
         return True
     except Exception as e:
-        logging.error(f"Database connection check failed: {e}")
+        logging.warning(f"Database connection check failed: {e}")
+        # Don't attempt reconnection here - just return False
         return False

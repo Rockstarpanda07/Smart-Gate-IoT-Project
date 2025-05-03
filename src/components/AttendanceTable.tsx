@@ -12,7 +12,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
+
+// Fix duplicate imports - use only one import statement
+import { buildApiUrl, API_ENDPOINTS, DATA_SOURCE } from '../config/api';
+import { fetchAttendance } from '../integrations/supabase';
 
 interface Student {
   id: string;
@@ -39,7 +42,7 @@ const AttendanceTable = () => {
     present: true,
     unauthorized: true,
     failed: true,
-    absent: true, // Added absent status to filter
+    absent: true,
   });
   const [methodFilter, setMethodFilter] = useState<Record<string, boolean>>({
     face: true,
@@ -48,43 +51,40 @@ const AttendanceTable = () => {
     none: true,
   });
   const [students, setStudents] = useState<Student[]>([]);
+  // Add missing loading state
+  const [loading, setLoading] = useState(false);
   
   useEffect(() => {
     // Fetch attendance data from API
     const fetchAttendanceData = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(buildApiUrl(API_ENDPOINTS.ATTENDANCE));
-        if (response.ok) {
-          const rawData = await response.json();
-          
-          // Validate data is an array before processing
-          if (Array.isArray(rawData)) {
-            // Validate and transform each record
-            const validatedData: AttendanceRecord[] = rawData.map(item => ({
-              // Fix: Use proper field mapping with fallbacks
-              studentName: typeof item.name === 'string' ? item.name : 'Unknown',
-              studentId: typeof item.rollno === 'string' ? item.rollno : 
-                         typeof item.studentId === 'string' ? item.studentId : 'N/A',
-              course: typeof item.course === 'string' ? item.course : '',
-              date: typeof item.date === 'string' ? item.date : 'N/A',
-              timestamp: typeof item.timestamp === 'string' ? item.timestamp : 'N/A',
-              status: ['present', 'unauthorized', 'failed', 'absent'].includes(item.status) ? 
-                      item.status : 'failed',
-              verificationMethod: ['face', 'barcode', 'manual', 'none'].includes(item.verificationMethod) ? 
-                item.verificationMethod : 'manual'
-            }));
-            
-            setAttendanceData(validatedData);
-          } else {
-            console.error("Invalid attendance data format: expected an array");
-            setAttendanceData([]);
-          }
+        let attendanceData;
+        
+        if (DATA_SOURCE.ATTENDANCE === 'supabase') {
+          // Use Supabase for faster performance
+          attendanceData = await fetchAttendance();
         } else {
-          console.error("Failed to fetch attendance data:", response.statusText);
+          // Fallback to local API
+          const response = await fetch(buildApiUrl(API_ENDPOINTS.ATTENDANCE));
+          attendanceData = await response.json();
         }
+        
+        // Fix: use setAttendanceData instead of setAttendance
+        setAttendanceData(attendanceData);
       } catch (error) {
-        console.error("Error fetching attendance data:", error);
-        setAttendanceData([]);
+        console.error('Failed to fetch attendance:', error);
+        // Fallback to local API if Supabase fails
+        try {
+          const response = await fetch(buildApiUrl(API_ENDPOINTS.ATTENDANCE));
+          const attendanceData = await response.json();
+          // Fix: use setAttendanceData instead of setAttendance
+          setAttendanceData(attendanceData);
+        } catch (fallbackError) {
+          console.error('Fallback fetch also failed:', fallbackError);
+        }
+      } finally {
+        setLoading(false);
       }
     };
     

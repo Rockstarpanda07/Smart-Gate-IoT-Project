@@ -21,6 +21,7 @@ interface Student {
   name: string;
   studentId: string;
   course: string;
+  dob: string;  // Add this new field
 }
 
 const AdminDashboard = () => {
@@ -32,7 +33,8 @@ const AdminDashboard = () => {
   const [formData, setFormData] = useState({
     name: "",
     studentId: "",
-    course: ""
+    course: "",
+    dob: ""  // Add this new field
   });
 
   useEffect(() => {
@@ -51,7 +53,8 @@ const AdminDashboard = () => {
             id: student.id ? student.id.toString() : 'unknown',
             name: typeof student.name === 'string' ? student.name : 'Unknown',
             studentId: typeof student.rollno === 'string' ? student.rollno : 'N/A',
-            course: typeof student.course === 'string' ? student.course : ""
+            course: typeof student.course === 'string' ? student.course : "",
+            dob: typeof student.dob === 'string' ? student.dob : ""
           }));
           setStudents(validatedStudents);
           console.log("Fetched students:", validatedStudents); // Add this line for debugging
@@ -88,7 +91,8 @@ const AdminDashboard = () => {
     setFormData({
       name: "",
       studentId: "",
-      course: ""
+      course: "",
+      dob: ""  // Add this line to include the dob field
     });
     setIsDialogOpen(true);
   };
@@ -98,7 +102,8 @@ const AdminDashboard = () => {
     setFormData({
       name: student.name,
       studentId: student.studentId,
-      course: student.course
+      course: student.course,
+      dob: student.dob || ""  // Add this line
     });
     setIsDialogOpen(true);
   };
@@ -118,11 +123,15 @@ const AdminDashboard = () => {
       return;
     }
     
+    // Make sure we're using the exact field names expected by the API
     const studentData = {
       name: formData.name.trim(),
       rollno: formData.studentId.trim(),
-      course: formData.course.trim()
+      course: formData.course.trim() || null,  // Provide null if empty
+      dob: formData.dob || null  // Add the DOB field
     };
+
+    console.log("Sending student data:", studentData); // Add this for debugging
 
     try {
       let response;
@@ -303,6 +312,18 @@ const AdminDashboard = () => {
                 name="course"
                 placeholder="Computer Science"
                 value={formData.course}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="dob">Date of Birth</Label>
+              <Input
+                id="dob"
+                name="dob"
+                type="date"
+                value={formData.dob}
                 onChange={handleInputChange}
                 required
               />

@@ -5,6 +5,7 @@ import mysql.connector
 from pyzbar.pyzbar import decode
 from picamera2 import Picamera2
 import gpiod
+import RPi.GPIO as GPIO  # Add RPi.GPIO import
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 import threading
@@ -28,7 +29,14 @@ app = Flask(__name__)
 # Replace the simple CORS(app) with a more specific configuration
 CORS(app, resources={
     r"/*": {
-        "origins": ["http://192.168.187.111:8080", "http://localhost:8080"],
+        "origins": [
+            "http://192.168.187.111:8080",  # Phone frontend
+            "http://192.168.187.111:8081",  # Phone frontend (alternate port)
+            "http://10.31.3.211:8080",      # College backend
+            "http://10.31.4.69:8080",       # College frontend
+            "http://localhost:8080",         # Local development
+            "http://localhost:8081"          # Local development (alternate port)
+        ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
@@ -36,16 +44,22 @@ CORS(app, resources={
 
 # GPIO Setup with error handling
 try:
+    # Keep gpiod for infrared and buzzer
     chip = gpiod.Chip('gpiochip0')
     infrared_pin = chip.get_line(17)
     buzzer_pin = chip.get_line(27)
-    motor_pin = chip.get_line(22)
     
     infrared_pin.request(consumer="attendance_system", type=gpiod.LINE_REQ_DIR_IN)
     buzzer_pin.request(consumer="attendance_system", type=gpiod.LINE_REQ_DIR_OUT)
-    motor_pin.request(consumer="attendance_system", type=gpiod.LINE_REQ_DIR_OUT)
     
-    logging.info("GPIO pins initialized successfully using gpiod")
+    # Setup RPi.GPIO for servo motor
+    servo_pin = 22
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(servo_pin, GPIO.OUT)
+    motor_pwm = GPIO.PWM(servo_pin, 50)  # 50Hz for servos
+    motor_pwm.start(0)
+    
+    logging.info("GPIO pins initialized successfully")
 except Exception as e:
     logging.error(f"Failed to initialize GPIO: {e}")
     exit(1)
@@ -82,11 +96,34 @@ except mysql.connector.Error as err:
 
 
 # Initialize Pi Camera
-picam2 = Picamera2()
+# Add these imports at the top of your file
+import os
+
+# Set environment variables to disable hardware acceleration before initializing camera
+os.environ["LIBCAMERA_LOG_LEVELS"] = "*=3"
+os.environ["PICAMERA2_DISABLE_HARDWARE_ACCELERATION"] = "1"
+
+# Initialize Pi Camera with more conservative settings and better error handling
 try:
-    picam2.configure(picam2.create_still_configuration())
-    picam2.start()
-    logging.info("Camera initialized successfully")
+    # First check if camera is available
+    from picamera2.picamera2 import Picamera2
+    camera_info = Picamera2.global_camera_info()
+    
+    if len(camera_info) > 0:
+        picam2 = Picamera2()
+        # Use a much more conservative configuration with very low resolution
+        camera_config = picam2.create_still_configuration(
+            main={"size": (640, 480)},  # Much lower resolution
+            lores={"size": (320, 240)},  # Even lower for secondary stream
+            display=None,  # Disable display stream
+            buffer_count=1  # Minimize buffer usage
+        )
+        picam2.configure(camera_config)
+        picam2.start()
+        logging.info("Camera initialized successfully")
+    else:
+        logging.error("No camera detected on this device")
+        picam2 = None
 except Exception as e:
     logging.error(f"Failed to initialize camera: {e}")
     picam2 = None
@@ -100,16 +137,21 @@ barcode_data = None
 face_detected = False
 
 # Function to scan barcode
+# Function to scan barcode
 def scan_barcode(frame):
     global barcode_data
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    barcodes = decode(gray)
-    
-    for barcode in barcodes:
-        barcode_data = barcode.data.decode("utf-8")
-        print(f"Barcode Detected: {barcode_data}")
-        return barcode_data
-    return None
+    try:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        barcodes = decode(gray)
+        
+        for barcode in barcodes:
+            barcode_data = barcode.data.decode("utf-8")
+            print(f"Barcode Detected: {barcode_data}")
+            return barcode_data
+        return None
+    except Exception as e:
+        logging.error(f"Error scanning barcode: {e}")
+        return None
 
 # Function to verify face
 def verify_face(frame):
@@ -155,17 +197,17 @@ def log_attendance(student_id):
     except mysql.connector.Error as err:
         logging.error(f"Error logging attendance: {err}")
 
-# Improved door opening/closing with smoother servo movement
+# Updated door opening/closing with RPi.GPIO servo control
 def open_door():
     global door_status, last_opened
     print("Opening door...")
     door_status = "opening"
     
-    # Smooth servo movement
-    steps = 20
-    for i in range(steps):
-        motor_pin.set_value(-1 + (2 * i/steps))  # Gradually move from -1 to 1
-        time.sleep(0.05)
+    # Move servo to open position (90 degrees)
+    duty = 90 / 18 + 2  # Convert angle to duty cycle
+    motor_pwm.ChangeDutyCycle(duty)
+    time.sleep(0.5)
+    motor_pwm.ChangeDutyCycle(0)  # Stop the servo from jittering
     
     door_status = "open"
     last_opened = time.strftime("%H:%M:%S")
@@ -174,9 +216,13 @@ def open_door():
         global door_status
         time.sleep(5)
         door_status = "closing"
-        for i in range(steps):
-            motor_pin.set_value(1 - (2 * i/steps))  # Gradually move from 1 to -1
-            time.sleep(0.05)
+        
+        # Move servo to closed position (0 degrees)
+        duty = 0 / 18 + 2  # Convert angle to duty cycle
+        motor_pwm.ChangeDutyCycle(duty)
+        time.sleep(0.5)
+        motor_pwm.ChangeDutyCycle(0)  # Stop the servo from jittering
+        
         door_status = "closed"
     
     threading.Thread(target=auto_close).start()
@@ -253,8 +299,6 @@ def background_processing():
 # Cleanup function
 def cleanup():
     try:
-        if motor_pin:
-            motor_pin.release()
         if buzzer_pin:
             buzzer_pin.release()
         if infrared_pin:
@@ -262,9 +306,12 @@ def cleanup():
         if picam2:
             picam2.stop()
             picam2.close()
-        # Remove or modify this part if db is no longer a global connection
-        # if db and db.is_connected():
-        #     db.close()
+        
+        # Cleanup RPi.GPIO
+        if 'motor_pwm' in globals():
+            motor_pwm.stop()
+        GPIO.cleanup()
+        
         logging.info("Cleanup completed successfully")
     except Exception as e:
         logging.error(f"Cleanup error: {e}")
@@ -330,7 +377,9 @@ def get_recognition_status():
 @api_error_handler
 def get_stats():
     if not check_db_connection(connection_pool):
-        return error_response("Database connection error", 503)
+        logging.info("Attempting to reconnect to database...")
+        if not reconnect_database():
+            return error_response("Database connection error", 503)
     
     try:
         # Get a fresh connection for each request
@@ -359,7 +408,9 @@ def get_stats():
 @api_error_handler
 def get_attendance():
     if not check_db_connection(connection_pool):
-        return error_response("Database connection error", 503)
+        logging.info("Attempting to reconnect to database...")
+        if not reconnect_database():
+            return error_response("Database connection error", 503)
     
     try:
         # Get a fresh connection for each request
@@ -397,7 +448,9 @@ def get_attendance():
 @api_error_handler
 def get_students():
     if not check_db_connection(connection_pool):
-        return error_response("Database connection error", 503)
+        logging.info("Attempting to reconnect to database...")
+        if not reconnect_database():
+            return error_response("Database connection error", 503)
     
     try:
         # Get a fresh connection for each request
@@ -423,20 +476,26 @@ def get_students():
 @api_error_handler
 def add_student():
     if not check_db_connection(connection_pool):
-        return error_response("Database connection error", 503)
+        logging.info("Attempting to reconnect to database...")
+        if not reconnect_database():
+            return error_response("Database connection error", 503)
     
     data = request.json
-    if not data or not all(key in data for key in ['name', 'rollno', 'course']):
+    if not data or not all(key in data for key in ['name', 'rollno', 'course', 'dob']):
         return error_response("Missing required fields", 400)
     
     try:
+        # Generate email based on the specified format
+        name_part = data['name'].lower().replace(' ', '')[:5]  # First 5 letters of name
+        email = f"{name_part}{data['rollno']}@snuchennai.edu.in"
+        
         # Get a fresh connection for each request
         db = connection_pool.get_connection()
         cursor = db.cursor()
         
         cursor.execute(
-            "INSERT INTO students (name, rollno, course) VALUES (%s, %s, %s)",
-            (data['name'], data['rollno'], data['course'])
+            "INSERT INTO students (name, rollno, course, dob, email) VALUES (%s, %s, %s, %s, %s)",
+            (data['name'], data['rollno'], data['course'], data['dob'], email)
         )
         db.commit()
         
@@ -444,7 +503,7 @@ def add_student():
         cursor.close()
         db.close()  # Return to pool
         
-        return jsonify({'message': 'Student added successfully', 'id': last_id}), 201
+        return jsonify({'message': 'Student added successfully', 'id': last_id, 'email': email}), 201
     except mysql.connector.Error as err:
         return error_response(f"Database error: {err}", 500)
 
@@ -452,10 +511,12 @@ def add_student():
 @api_error_handler
 def update_student(student_id):
     if not check_db_connection(connection_pool):
-        return error_response("Database connection error", 503)
+        logging.info("Attempting to reconnect to database...")
+        if not reconnect_database():
+            return error_response("Database connection error", 503)
     
     data = request.json
-    if not data or not any(key in data for key in ['name', 'rollno', 'course']):
+    if not data or not any(key in data for key in ['name', 'rollno', 'course', 'dob']):
         return error_response("No fields to update", 400)
     
     try:
@@ -463,10 +524,35 @@ def update_student(student_id):
         db = connection_pool.get_connection()
         cursor = db.cursor()
         
-        # Build dynamic update query based on provided fields
-        update_fields = []
-        params = []
+        # First, get current student data if name or rollno is being updated
+        # (needed to generate new email if these fields change)
+        regenerate_email = 'name' in data or 'rollno' in data
         
+        if regenerate_email:
+            cursor.execute("SELECT name, rollno FROM students WHERE id = %s", (student_id,))
+            current_data = cursor.fetchone()
+            
+            if not current_data:
+                cursor.close()
+                db.close()
+                return error_response("Student not found", 404)
+                
+            # Use updated values or current values as needed
+            name = data.get('name', current_data[0])
+            rollno = data.get('rollno', current_data[1])
+            
+            # Generate new email
+            name_part = name.lower().replace(' ', '')[:5]  # First 5 letters of name
+            email = f"{name_part}{rollno}@snuchennai.edu.in"
+            
+            # Add email to the fields to update
+            update_fields = ["email = %s"]
+            params = [email]
+        else:
+            update_fields = []
+            params = []
+        
+        # Add other fields to update
         if 'name' in data:
             update_fields.append("name = %s")
             params.append(data['name'])
@@ -478,12 +564,15 @@ def update_student(student_id):
         if 'course' in data:
             update_fields.append("course = %s")
             params.append(data['course'])
+            
+        if 'dob' in data:
+            update_fields.append("dob = %s")
+            params.append(data['dob'])
         
         params.append(student_id)  # For the WHERE clause
         
         query = f"UPDATE students SET {', '.join(update_fields)} WHERE id = %s"
-        # No fresh connection is obtained
-        cursor.execute(query, params)  # Using global cursor
+        cursor.execute(query, params)
         
         if cursor.rowcount == 0:
             cursor.close()
@@ -494,15 +583,21 @@ def update_student(student_id):
         cursor.close()
         db.close()  # Return to pool
         
-        return jsonify({'message': 'Student updated successfully'})
+        response_data = {'message': 'Student updated successfully'}
+        if regenerate_email:
+            response_data['email'] = email
+            
+        return jsonify(response_data)
     except mysql.connector.Error as err:
         return error_response(f"Database error: {err}", 500)
 
 @app.route('/api/students/<int:student_id>', methods=['DELETE'])
 @api_error_handler
 def delete_student(student_id):
-    if not check_db_connection(connection_pool):  # Fix this line
-        return error_response("Database connection error", 503)
+    if not check_db_connection(connection_pool):
+        logging.info("Attempting to reconnect to database...")
+        if not reconnect_database():
+            return error_response("Database connection error", 503)
     
     try:
         # Get a fresh connection for each request
@@ -524,17 +619,50 @@ def delete_student(student_id):
     except mysql.connector.Error as err:
         return error_response(f"Database error: {err}", 500)
 
-# Add this function
+# Add this function to your api_server.py file, after the database setup section
+
+def reconnect_database():
+    global connection_pool
+    try:
+        logging.info("Attempting to reconnect to database...")
+        # Create a new connection pool
+        dbconfig = {
+            "host": "localhost",
+            "user": "root",
+            "password": "test",
+            "database": "attendance"
+        }
+        connection_pool = MySQLConnectionPool(pool_name="attendance_pool",
+                                          pool_size=5,
+                                          **dbconfig)
+        
+        # Test the connection by getting a connection from the pool
+        conn = connection_pool.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        cursor.close()
+        conn.close()  # Return connection to pool
+        
+        logging.info("Database reconnection successful")
+        return True
+    except mysql.connector.Error as err:
+        logging.error(f"Database reconnection failed: {err}")
+        connection_pool = None
+        return False
+
+# Add this function after the reconnect_database function
 def periodic_db_check():
-    """Periodically check database connection and refresh if needed"""
+    """Periodically check database connection and attempt to reconnect if needed."""
+    logging.info("Starting periodic database connection check")
     while True:
-        try:
-            if connection_pool:
-                check_db_connection(connection_pool)
-            time.sleep(60)  # Check every minute
-        except Exception as e:
-            logging.error(f"Error in periodic DB check: {e}")
-            time.sleep(10)  # Shorter interval if there was an error
+        time.sleep(60)  # Check every 60 seconds
+        if not check_db_connection(connection_pool):
+            logging.warning("Database connection lost, attempting to reconnect...")
+            if reconnect_database():
+                logging.info("Database reconnection successful in periodic check")
+            else:
+                logging.error("Database reconnection failed in periodic check")
 
 # Start the periodic check thread
 db_check_thread = threading.Thread(target=periodic_db_check)
