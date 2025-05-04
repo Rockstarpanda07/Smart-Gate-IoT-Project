@@ -185,8 +185,9 @@ def log_attendance(student_id):
         else:
             recognized_face = f"Unknown ({student_id})"
         
-        cursor.execute("INSERT INTO student_attendance (student_id, status) VALUES (%s, %s)", 
-                      (student_id, "Present"))
+        # Updated to include verification_method
+        cursor.execute("INSERT INTO student_attendance (student_id, status, verification_method) VALUES (%s, %s, %s)", 
+                      (student_id, "present", "fully verified"))
         db.commit()
         
         cursor.close()
@@ -212,10 +213,8 @@ def open_door():
     door_status = "open"
     last_opened = time.strftime("%H:%M:%S")
     
-    # Add this near the other global variables
-    DOOR_OPEN_TIME = 10  # door open time in seconds
+    # Remove the DOOR_OPEN_TIME definition from here
     
-    # Then use it in both places
     def auto_close():
         global door_status
         time.sleep(DOOR_OPEN_TIME)  # Use the constant

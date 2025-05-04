@@ -31,7 +31,7 @@ interface AttendanceRecord {
   course: string;
   date: string;
   timestamp: string;
-  status: 'present' | 'unauthorized' | 'failed' | 'absent';
+  status: 'present' | 'absent' | 'proxy';
   verificationMethod: string;
 }
 
@@ -40,14 +40,12 @@ const AttendanceTable = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<Record<string, boolean>>({
     present: true,
-    unauthorized: true,
-    failed: true,
     absent: true,
+    proxy: true,
   });
   const [methodFilter, setMethodFilter] = useState<Record<string, boolean>>({
-    face: true,
-    barcode: true,
-    manual: true,
+    "fully verified": true,
+    "partially verified": true,
     none: true,
   });
   const [students, setStudents] = useState<Student[]>([]);
@@ -142,7 +140,8 @@ const AttendanceTable = () => {
       date: attendanceRecord?.date || 'No record',
       timestamp: attendanceRecord?.timestamp || 'N/A',
       status: attendanceRecord?.status || 'absent',
-      verificationMethod: attendanceRecord?.verificationMethod || 'none'
+      verificationMethod: attendanceRecord?.status === 'present' ? 'fully verified' : 
+                          attendanceRecord?.status === 'proxy' ? 'partially verified' : 'none'
     };
   });
 
@@ -152,8 +151,9 @@ const AttendanceTable = () => {
       record.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       record.course.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter[record.status];
-    const matchesMethod = methodFilter[record.verificationMethod];
+    // Ensure we only check for valid status types that exist in our filter
+    const matchesStatus = statusFilter[record.status] ?? false;
+    const matchesMethod = methodFilter[record.verificationMethod] ?? false;
     
     return matchesSearch && matchesStatus && matchesMethod;
   });
@@ -196,20 +196,12 @@ const AttendanceTable = () => {
                     Present
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={statusFilter.unauthorized}
+                    checked={statusFilter.proxy}
                     onCheckedChange={(checked) =>
-                      setStatusFilter({ ...statusFilter, unauthorized: checked })
+                      setStatusFilter({ ...statusFilter, proxy: checked })
                     }
                   >
-                    Unauthorized
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={statusFilter.failed}
-                    onCheckedChange={(checked) =>
-                      setStatusFilter({ ...statusFilter, failed: checked })
-                    }
-                  >
-                    Failed
+                    Proxy
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={statusFilter.absent}
@@ -254,6 +246,24 @@ const AttendanceTable = () => {
                   >
                     Manual Entry
                   </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuCheckboxItem
+                    checked={methodFilter["fully verified"]}
+                    onCheckedChange={(checked) =>
+                      setMethodFilter({ ...methodFilter, "fully verified": checked })
+                    }
+                  >
+                    Fully Verified
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={methodFilter["partially verified"]}
+                    onCheckedChange={(checked) =>
+                      setMethodFilter({ ...methodFilter, "partially verified": checked })
+                    }
+                  >
+                    Partially Verified
+                  </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={methodFilter.none}
                     onCheckedChange={(checked) =>
@@ -296,14 +306,24 @@ const AttendanceTable = () => {
                     <TableCell>{record.timestamp}</TableCell>
                     <TableCell>
                       <Badge 
-                        variant={record.status === 'unauthorized' ? 'destructive' : 'secondary'}
+                        variant={record.status === 'proxy' ? 'warning' : 'secondary'}
                         className={record.status === 'present' ? 'bg-green-500 text-white border-transparent hover:bg-green-600' : ''}
                       >
                         {record.status === 'absent' ? 'No Record' : 
                          record.status.charAt(0).toUpperCase() + record.status.slice(1)}
                       </Badge>
                     </TableCell>
-                    <TableCell>{record.verificationMethod === 'none' ? '-' : record.verificationMethod}</TableCell>
+                    <TableCell>
+                        <Badge 
+                          variant="secondary"
+                          className={
+                            record.status === 'present' ? 'bg-green-500 text-white border-transparent hover:bg-green-600' : 
+                            record.status === 'proxy' ? 'bg-yellow-500 text-white border-transparent hover:bg-yellow-600' : ''
+                          }
+                        >
+                          {record.verificationMethod}
+                        </Badge>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : students.length === 0 ? (

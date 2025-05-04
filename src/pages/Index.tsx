@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import CameraFeed from "@/components/CameraFeed";
 import DoorStatus from "@/components/DoorStatus";
 import AttendanceTable from "@/components/AttendanceTable";
+import TeamMembers from "@/components/TeamMembers"; // Add this import
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { AreaChart, UserRound, Clock } from "lucide-react";
@@ -117,6 +118,11 @@ const Index = () => {
           {/* Attendance Table */}
           <div className="md:col-span-3">
             <AttendanceTable />
+          </div>
+          
+          {/* Team Members Section */}
+          <div className="md:col-span-3 mt-6">
+            <TeamMembers />
           </div>
         </div>
       </main>
