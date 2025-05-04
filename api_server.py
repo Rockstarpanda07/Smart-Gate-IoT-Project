@@ -212,9 +212,13 @@ def open_door():
     door_status = "open"
     last_opened = time.strftime("%H:%M:%S")
     
+    # Add this near the other global variables
+    DOOR_OPEN_TIME = 10  # door open time in seconds
+    
+    # Then use it in both places
     def auto_close():
         global door_status
-        time.sleep(5)
+        time.sleep(DOOR_OPEN_TIME)  # Use the constant
         door_status = "closing"
         
         # Move servo to closed position (0 degrees)
@@ -361,7 +365,7 @@ def get_door_status():
     return jsonify({
         'status': door_status,
         'lastOpened': last_opened,
-        'autoCloseTimer': 5 if door_status == "open" else 0
+        'autoCloseTimer': DOOR_OPEN_TIME if door_status == "open" else 0
     })
 
 @app.route('/api/recognition-status', methods=['GET'])
@@ -457,12 +461,13 @@ def get_students():
         db = connection_pool.get_connection()
         cursor = db.cursor()
         
-        cursor.execute("SELECT id, name, rollno, course FROM students ORDER BY name")
+        cursor.execute("SELECT id, name, rollno, course, email FROM students ORDER BY name")
         students = [{
             'id': row[0],
             'name': row[1],
             'rollno': row[2],
-            'course': row[3]
+            'course': row[3],
+            'email': row[4]
         } for row in cursor.fetchall()]
         
         cursor.close()
@@ -507,7 +512,7 @@ def add_student():
     except mysql.connector.Error as err:
         return error_response(f"Database error: {err}", 500)
 
-@app.route('/api/students/<int:student_id>', methods=['PUT'])
+@app.route('/api/students/<string:student_id>', methods=['PUT'])
 @api_error_handler
 def update_student(student_id):
     if not check_db_connection(connection_pool):
@@ -591,7 +596,7 @@ def update_student(student_id):
     except mysql.connector.Error as err:
         return error_response(f"Database error: {err}", 500)
 
-@app.route('/api/students/<int:student_id>', methods=['DELETE'])
+@app.route('/api/students/<string:student_id>', methods=['DELETE'])
 @api_error_handler
 def delete_student(student_id):
     if not check_db_connection(connection_pool):
@@ -604,6 +609,10 @@ def delete_student(student_id):
         db = connection_pool.get_connection()
         cursor = db.cursor()
         
+        # Log the student_id for debugging
+        logging.info(f"Attempting to delete student with ID: {student_id}")
+        
+        # Use the string ID directly without conversion
         cursor.execute("DELETE FROM students WHERE id = %s", (student_id,))
         
         if cursor.rowcount == 0:
@@ -617,6 +626,7 @@ def delete_student(student_id):
         
         return jsonify({'message': 'Student deleted successfully'})
     except mysql.connector.Error as err:
+        logging.error(f"Error deleting student: {err}")
         return error_response(f"Database error: {err}", 500)
 
 # Add this function to your api_server.py file, after the database setup section

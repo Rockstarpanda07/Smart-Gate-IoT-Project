@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Users, PlusCircle, Pencil, Trash, Search } from "lucide-react";
+import { Users, PlusCircle, Pencil, Trash, Search, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,16 @@ import {
 import { Label } from "@/components/ui/label";
 import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
 
+// Import the sync function
+import { syncDataToSupabase } from "@/lib/syncData";
+
 interface Student {
   id: string;
   name: string;
   studentId: string;
   course: string;
-  dob: string;  // Add this new field
+  dob: string;
+  email: string;  // Add this new field
 }
 
 const AdminDashboard = () => {
@@ -34,7 +38,8 @@ const AdminDashboard = () => {
     name: "",
     studentId: "",
     course: "",
-    dob: ""  // Add this new field
+    dob: "",
+    email: ""  // Add this line
   });
 
   useEffect(() => {
@@ -54,7 +59,8 @@ const AdminDashboard = () => {
             name: typeof student.name === 'string' ? student.name : 'Unknown',
             studentId: typeof student.rollno === 'string' ? student.rollno : 'N/A',
             course: typeof student.course === 'string' ? student.course : "",
-            dob: typeof student.dob === 'string' ? student.dob : ""
+            dob: typeof student.dob === 'string' ? student.dob : "",
+            email: typeof student.email === 'string' ? student.email : ""  // Add this line
           }));
           setStudents(validatedStudents);
           console.log("Fetched students:", validatedStudents); // Add this line for debugging
@@ -92,7 +98,8 @@ const AdminDashboard = () => {
       name: "",
       studentId: "",
       course: "",
-      dob: ""  // Add this line to include the dob field
+      dob: "",
+      email: ""  // Add this line
     });
     setIsDialogOpen(true);
   };
@@ -103,7 +110,8 @@ const AdminDashboard = () => {
       name: student.name,
       studentId: student.studentId,
       course: student.course,
-      dob: student.dob || ""  // Add this line
+      dob: student.dob || "",
+      email: student.email || ""  // Add this line
     });
     setIsDialogOpen(true);
   };
@@ -210,6 +218,24 @@ const AdminDashboard = () => {
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Student
               </Button>
+              
+              {/* Add the Sync Data Now button here */}
+              <Button 
+                onClick={async () => {
+                  const result = await syncDataToSupabase();
+                  if (result.success) {
+                    alert("Data synchronized successfully!");
+                    await fetchStudents(); // Refresh the student list
+                  } else {
+                    alert("Data synchronization failed. Check console for details.");
+                  }
+                }} 
+                variant="outline"
+                size="sm"
+                className="h-9"
+              >
+                Sync Data Now
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -219,8 +245,9 @@ const AdminDashboard = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>ID</TableHead>
+                  <TableHead>Student ID</TableHead>
                   <TableHead>Course</TableHead>
+                  <TableHead>Email</TableHead> {/* Add this line */}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -231,32 +258,38 @@ const AdminDashboard = () => {
                       <TableCell className="font-medium">{student.name}</TableCell>
                       <TableCell>{student.studentId}</TableCell>
                       <TableCell>{student.course}</TableCell>
+                      <TableCell>{student.email}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(student)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Edit</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openDeleteDialog(student)}
-                          >
-                            <Trash className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(student)}
+                          className="h-8 w-8"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openDeleteDialog(student)}
+                          className="h-8 w-8 text-destructive"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
+                ) : students.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                      <AlertTriangle className="h-5 w-5 mx-auto mb-2" />
+                      Student details could not be fetched. Please check your connection.
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8">
-                      No students found
+                    <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                      No matching records found
                     </TableCell>
                   </TableRow>
                 )}

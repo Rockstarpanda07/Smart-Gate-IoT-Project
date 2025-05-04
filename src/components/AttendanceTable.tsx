@@ -54,70 +54,76 @@ const AttendanceTable = () => {
   // Add missing loading state
   const [loading, setLoading] = useState(false);
   
-  useEffect(() => {
-    // Fetch attendance data from API
-    const fetchAttendanceData = async () => {
-      setLoading(true);
-      try {
-        let attendanceData;
-        
-        if (DATA_SOURCE.ATTENDANCE === 'supabase') {
-          // Use Supabase for faster performance
-          attendanceData = await fetchAttendance();
-        } else {
-          // Fallback to local API
-          const response = await fetch(buildApiUrl(API_ENDPOINTS.ATTENDANCE));
-          attendanceData = await response.json();
-        }
-        
-        // Fix: use setAttendanceData instead of setAttendance
-        setAttendanceData(attendanceData);
-      } catch (error) {
-        console.error('Failed to fetch attendance:', error);
-        // Fallback to local API if Supabase fails
+  // Define fetchAttendanceData outside useEffect
+  const fetchAttendanceData = async () => {
+    setLoading(true);
+    try {
+      let data;
+      
+      if (DATA_SOURCE.ATTENDANCE === 'supabase') {
         try {
+          // Use Supabase for faster performance
+          data = await fetchAttendance();
+        } catch (supabaseError) {
+          console.error('Supabase fetch failed:', supabaseError);
+          // Fall back to local API
           const response = await fetch(buildApiUrl(API_ENDPOINTS.ATTENDANCE));
-          const attendanceData = await response.json();
-          // Fix: use setAttendanceData instead of setAttendance
-          setAttendanceData(attendanceData);
-        } catch (fallbackError) {
-          console.error('Fallback fetch also failed:', fallbackError);
+          data = await response.json();
         }
-      } finally {
-        setLoading(false);
+      } else {
+        // Fallback to local API
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.ATTENDANCE));
+        data = await response.json();
       }
-    };
-    
-    // Fetch students data from API
-    const fetchStudents = async () => {
-      try {
-        const response = await fetch(buildApiUrl(API_ENDPOINTS.STUDENTS));
-        if (response.ok) {
-          const rawData = await response.json();
-          
-          if (Array.isArray(rawData)) {
-            const validatedStudents = rawData.map((student: any) => ({
-              id: student.id ? student.id.toString() : 'unknown',
-              name: typeof student.name === 'string' ? student.name : 'Unknown',
-              rollno: typeof student.rollno === 'string' ? student.rollno : 'N/A',
-              studentId: typeof student.rollno === 'string' ? student.rollno : 
-                         typeof student.studentId === 'string' ? student.studentId : 'N/A',
-              course: typeof student.course === 'string' ? student.course : ""
-            }));
-            setStudents(validatedStudents);
-          } else {
-            console.error("Invalid students data format: expected an array");
-            setStudents([]);
-          }
+      
+      // Check if data is valid
+      if (Array.isArray(data)) {
+        setAttendanceData(data);
+      } else {
+        console.error('Invalid attendance data format');
+        setAttendanceData([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch attendance:', error);
+      setAttendanceData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Define fetchStudents function
+  const fetchStudents = async () => {
+    try {
+      const response = await fetch(buildApiUrl(API_ENDPOINTS.STUDENTS));
+      if (response.ok) {
+        const rawData = await response.json();
+        
+        if (Array.isArray(rawData)) {
+          const validatedStudents = rawData.map((student: any) => ({
+            id: student.id ? student.id.toString() : 'unknown',
+            name: typeof student.name === 'string' ? student.name : 'Unknown',
+            rollno: typeof student.rollno === 'string' ? student.rollno : 'N/A',
+            studentId: typeof student.rollno === 'string' ? student.rollno : 
+                       typeof student.studentId === 'string' ? student.studentId : 'N/A',
+            course: typeof student.course === 'string' ? student.course : ""
+          }));
+          setStudents(validatedStudents);
         } else {
-          console.error("Failed to fetch students:", response.statusText);
+          console.error("Invalid students data format: expected an array");
           setStudents([]);
         }
-      } catch (error) {
-        console.error("Error fetching students:", error);
+      } else {
+        console.error("Failed to fetch students:", response.statusText);
         setStudents([]);
       }
-    };
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      setStudents([]);
+    }
+  };
+  
+  useEffect(() => {
+    // Call the fetchAttendanceData function defined above
     fetchAttendanceData();
     fetchStudents();
     const interval = setInterval(() => {
@@ -281,25 +287,33 @@ const AttendanceTable = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {/* Use filteredData instead of students to respect filters */}
-              {filteredData.length > 0 ? filteredData.map((record, idx) => (
-                <TableRow key={record.studentId + idx}>
-                  <TableCell>{record.studentName}</TableCell>
-                  <TableCell>{record.studentId}</TableCell>
-                  <TableCell>{record.date}</TableCell>
-                  <TableCell>{record.timestamp}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={record.status === 'unauthorized' ? 'destructive' : 'secondary'}
-                      className={record.status === 'present' ? 'bg-green-500 text-white border-transparent hover:bg-green-600' : ''}
-                    >
-                      {record.status === 'absent' ? 'No Record' : 
-                       record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                    </Badge>
+              {filteredData.length > 0 ? (
+                filteredData.map((record, idx) => (
+                  <TableRow key={record.studentId + idx}>
+                    <TableCell>{record.studentName}</TableCell>
+                    <TableCell>{record.studentId}</TableCell>
+                    <TableCell>{record.date}</TableCell>
+                    <TableCell>{record.timestamp}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={record.status === 'unauthorized' ? 'destructive' : 'secondary'}
+                        className={record.status === 'present' ? 'bg-green-500 text-white border-transparent hover:bg-green-600' : ''}
+                      >
+                        {record.status === 'absent' ? 'No Record' : 
+                         record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{record.verificationMethod === 'none' ? '-' : record.verificationMethod}</TableCell>
+                  </TableRow>
+                ))
+              ) : students.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                    <AlertTriangle className="h-5 w-5 mx-auto mb-2" />
+                    Student details could not be fetched. Please check your connection.
                   </TableCell>
-                  <TableCell>{record.verificationMethod === 'none' ? '-' : record.verificationMethod}</TableCell>
                 </TableRow>
-              )) : (
+              ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
                     No matching records found
