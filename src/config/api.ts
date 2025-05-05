@@ -25,14 +25,15 @@ export const API_ENDPOINTS = {
   RECOGNITION_STATUS: "/api/recognition-status",
   ATTENDANCE: "/api/attendance",
   STATS: "/api/stats",
-  STUDENTS: "/api/students"
+  STUDENTS: "/api/students",
+  HEALTH: "/api/health"
 };
 
 // Data source configuration
 export const DATA_SOURCE = {
   // Set to 'supabase' for faster frontend performance or 'local' for direct API access
-  STUDENTS: 'supabase',
-  ATTENDANCE: 'supabase',
+  STUDENTS: 'local',  // Changed from 'supabase' to 'local'
+  ATTENDANCE: 'local', // Changed from 'supabase' to 'local'
   // Hardware-related endpoints must remain 'local'
   CAMERA: 'local',
   DOOR: 'local',

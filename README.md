@@ -21,6 +21,7 @@ A smart attendance system that uses Raspberry Pi, camera, and sensors to automat
 - **Raspberry Pi**: Python Flask API server
 - **Frontend**: React web application with real-time monitoring
 - **Database**: MySQL for storing student data and attendance records
+- **Cloud Storage**: Supabase for remote data synchronization
 
 ## Raspberry Pi Integration
 
@@ -33,23 +34,30 @@ CREATE TABLE students (
   id INT AUTO_INCREMENT PRIMARY KEY,
   rollno VARCHAR(20) UNIQUE NOT NULL,
   name VARCHAR(100) NOT NULL,
-  course VARCHAR(50)
+  course VARCHAR(50),
+  dob DATE,
+  email VARCHAR(100)
 );
 
 CREATE TABLE student_attendance (
   id INT AUTO_INCREMENT PRIMARY KEY,
   student_id VARCHAR(20) NOT NULL,
+  date DATE DEFAULT CURRENT_DATE,
   timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-  status VARCHAR(20) DEFAULT 'Present'
+  status VARCHAR(20) DEFAULT 'present',
+  verification_method VARCHAR(50) DEFAULT 'fully verified',
+  UNIQUE KEY unique_daily_attendance (student_id, date)
 );
 ```
+
+The `UNIQUE KEY` constraint prevents duplicate attendance entries for the same student on the same day.
 
 ### 2. Raspberry Pi Setup
 
 1. Install required Python packages:
 
 ```bash
-pip install flask flask-cors opencv-python numpy mysql-connector-python pyzbar picamera2 gpiozero
+pip install flask flask-cors opencv-python numpy mysql-connector-python pyzbar picamera2 gpiod RPi.GPIO requests
 ```
 
 2. Connect the hardware components:
@@ -57,7 +65,7 @@ pip install flask flask-cors opencv-python numpy mysql-connector-python pyzbar p
    - Pi Camera to the camera port
    - Infrared sensor to GPIO 17
    - Buzzer to GPIO 27
-   - Servo motor to GPIO 22
+   - Servo motor to GPIO 22 (PWM controlled)
 
 3. Run the API server:
 
@@ -69,14 +77,49 @@ The server will start on port 5000.
 
 ### 3. API Configuration
 
-Update the API base URL in the following files with your Raspberry Pi's IP address:
+The API server is configured with specific CORS settings to allow connections from approved origins:
 
-- `src/components/CameraFeed.tsx`
-- `src/components/DoorStatus.tsx`
-- `src/components/AttendanceTable.tsx`
-- `src/pages/Index.tsx`
+```python
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://192.168.187.111:8080",  # Phone frontend
+            "http://192.168.187.111:8081",  # Phone frontend (alternate port)
+            "http://10.31.3.211:8080",      # College backend
+            "http://10.31.4.69:8080",       # College frontend
+            "http://localhost:8080",         # Local development
+            "http://localhost:8081",         # Local development (alternate port)
+            "http://192.168.56.1:8080",      # Additional frontend
+            "http://192.168.187.113:5000"    # API server itself
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+        "supports_credentials": True
+    }
+})
+```
 
-Change `http://your-raspberry-pi-ip:5000` to your actual Raspberry Pi's IP address (e.g., `http://192.168.1.100:5000`).
+Update the frontend configuration in `src/config/api.ts` with your Raspberry Pi's IP address.
+
+## Database Connection Pooling
+
+The system uses MySQL connection pooling for improved performance and reliability:
+
+```python
+connection_pool = MySQLConnectionPool(pool_name="attendance_pool",
+                                    pool_size=5,
+                                    **dbconfig)
+```
+
+## Cloud Synchronization with Supabase
+
+Attendance records are automatically synchronized to Supabase for cloud backup and remote access:
+
+```python
+def sync_to_supabase(table, data, on_conflict=None):
+    # Synchronizes local data to Supabase cloud database
+    # Uses conflict resolution to handle duplicate entries
+```
 
 ## API Endpoints
 
@@ -90,10 +133,41 @@ Change `http://your-raspberry-pi-ip:5000` to your actual Raspberry Pi's IP addre
 
 - `GET /api/door-status`: Returns the current door status (open, closed, opening, closing, alert)
 
-### Statistics
+### Statistics and Data
 
 - `GET /api/stats`: Returns system statistics (total students, today's entries, weekly entries)
 - `GET /api/attendance`: Returns recent attendance records
+- `GET /api/students`: Returns the list of all registered students
+
+## Duplicate Attendance Prevention
+
+The system prevents duplicate attendance entries through two mechanisms:
+
+1. **Database Constraint**: The `UNIQUE KEY` constraint in the `student_attendance` table prevents multiple entries for the same student on the same day.
+
+2. **Application Logic**: Before logging attendance, the system checks if an entry already exists:
+
+```python
+# Check if student already has an attendance record for today
+current_date = time.strftime("%Y-%m-%d")
+cursor.execute("SELECT id FROM student_attendance WHERE student_id = %s AND DATE(date) = %s",
+              (student_id, current_date))
+existing_record = cursor.fetchone()
+
+if existing_record:
+    # Student already has an attendance record for today
+    print(f"Student {student_id} already has attendance for today. Skipping.")
+    return
+```
+
+## Error Handling and Resilience
+
+The system includes robust error handling with:
+
+- API error handling decorator for consistent error responses
+- Retry mechanism for transient hardware failures
+- Database connection checking and pooling
+- Graceful degradation when hardware components fail
 
 ## Testing the System
 
@@ -116,6 +190,9 @@ curl http://localhost:5000/api/attendance
 
 # Test statistics endpoint
 curl http://localhost:5000/api/stats
+
+# Test students list endpoint
+curl http://localhost:5000/api/students
 ```
 
 ### Hardware Testing

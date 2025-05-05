@@ -13,7 +13,7 @@ import json
 import base64
 import logging
 import atexit
-from api_error_handler import api_error_handler, retry_operation, check_db_connection, error_response
+from api_error_handler import api_error_handler, check_db_connection, error_response
 
 # Initialize logging first
 logging.basicConfig(
@@ -26,21 +26,29 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
-# Replace the simple CORS(app) with a more specific configuration
+
+# Update the CORS configuration to be more permissive for development
 CORS(app, resources={
     r"/*": {
-        "origins": [
-            "http://192.168.187.111:8080",  # Phone frontend
-            "http://192.168.187.111:8081",  # Phone frontend (alternate port)
-            "http://10.31.3.211:8080",      # College backend
-            "http://10.31.4.69:8080",       # College frontend
-            "http://localhost:8080",         # Local development
-            "http://localhost:8081"          # Local development (alternate port)
-        ],
+        "origins": ["http://192.168.187.111:8080", "http://localhost:8080"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+        "supports_credentials": True,
+        "max_age": 86400  # Cache preflight response for 24 hours
     }
 })  # Enable CORS for all routes
+
+@app.after_request
+def add_cors_headers(response):
+    # Only add headers if they're not already present
+    if 'Access-Control-Allow-Origin' not in response.headers:
+        # You can use '*' or specify origins
+        response.headers.add('Access-Control-Allow-Origin', '*')
+    if 'Access-Control-Allow-Headers' not in response.headers:
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
+    if 'Access-Control-Allow-Methods' not in response.headers:
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+    return response
 
 # GPIO Setup with error handling
 try:
@@ -53,6 +61,8 @@ try:
     buzzer_pin.request(consumer="attendance_system", type=gpiod.LINE_REQ_DIR_OUT)
     
     # Setup RPi.GPIO for servo motor
+    # Add this near the top of your file with other constants
+    DOOR_OPEN_TIME = 10  # Time in seconds to keep the door open
     servo_pin = 22
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(servo_pin, GPIO.OUT)
@@ -98,6 +108,52 @@ except mysql.connector.Error as err:
 # Initialize Pi Camera
 # Add these imports at the top of your file
 import os
+import requests
+
+# Replace these lines:
+# Load environment variables
+
+# Supabase configuration
+SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://dvkpjqjuimtpwuzlpfhr.supabase.co')
+SUPABASE_KEY = os.getenv('SUPABASE_ANON_KEY')
+
+# With these hardcoded values:
+# Supabase configuration - hardcoded credentials
+SUPABASE_URL = 'https://dvkpjqjuimtpwuzlpfhr.supabase.co'
+SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2a3BqcWp1aW10cHd1emxwZmhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4MTAyNjEsImV4cCI6MjA2MTM4NjI2MX0.K_AeFYVisbPjdw0By6vqu1h5JfYqiMRvDpNadF3DwC4'
+
+# Function to sync data to Supabase
+def sync_to_supabase(table, data, on_conflict=None):
+    try:
+        headers = {
+            'apikey': SUPABASE_KEY,
+            'Authorization': f'Bearer {SUPABASE_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates'
+        }
+        
+        url = f"{SUPABASE_URL}/rest/v1/{table}"
+        
+        # Add conflict resolution if specified
+        if on_conflict:
+            url += f"?on_conflict={on_conflict}"
+            
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=10  # Add timeout parameter
+        )
+        
+        if response.status_code in [200, 201, 204]:
+            logging.info(f"Data synced to Supabase {table} table successfully")
+            return True
+        else:
+            logging.error(f"Failed to sync data to Supabase {table} table: {response.text}")
+            return False
+    except Exception as e:
+        logging.error(f"Error syncing to Supabase {table} table: {e}")
+        return False
 
 # Set environment variables to disable hardware acceleration before initializing camera
 os.environ["LIBCAMERA_LOG_LEVELS"] = "*=3"
@@ -170,6 +226,7 @@ def verify_face(frame):
     return False
 
 # Function to log attendance
+# Function to log attendance
 def log_attendance(student_id):
     global recognized_face, last_activity
     
@@ -185,6 +242,20 @@ def log_attendance(student_id):
         else:
             recognized_face = f"Unknown ({student_id})"
         
+        # Check if student already has an attendance record for today
+        current_date = time.strftime("%Y-%m-%d")
+        cursor.execute("SELECT id FROM student_attendance WHERE student_id = %s AND DATE(date) = %s", 
+                      (student_id, current_date))
+        existing_record = cursor.fetchone()
+        
+        if existing_record:
+            # Student already has an attendance record for today
+            print(f"Student {student_id} already has attendance for today. Skipping.")
+            last_activity = time.strftime("%H:%M:%S")
+            cursor.close()
+            db.close()  # Return to pool
+            return
+        
         # Updated to include verification_method
         cursor.execute("INSERT INTO student_attendance (student_id, status, verification_method) VALUES (%s, %s, %s)", 
                       (student_id, "present", "fully verified"))
@@ -195,6 +266,25 @@ def log_attendance(student_id):
         
         last_activity = time.strftime("%H:%M:%S")
         print(f"Attendance logged for student: {student_id}")
+        
+        # Sync to Supabase
+        current_time = time.strftime("%H:%M:%S")
+        
+        # Prepare data for Supabase
+        attendance_data = {
+            "student_id": student_id,
+            "status": "present",
+            "verification_method": "fully verified",
+            "date": current_date,
+            "timestamp": f"{current_date}T{current_time}"
+        }
+        
+        # Sync to Supabase in a separate thread to avoid blocking
+        threading.Thread(
+            target=sync_to_supabase,
+            args=("student_attendance", attendance_data, "student_id,timestamp")
+        ).start()
+        
     except mysql.connector.Error as err:
         logging.error(f"Error logging attendance: {err}")
 
@@ -232,6 +322,7 @@ def open_door():
 
 # Function to check student entry
 def check_entry():
+    global door_status  # Add this line to access the global variable
     print("Waiting for student to enter...")
     start_time = time.time()
     
@@ -264,22 +355,28 @@ def check_student_in_db(student_id):
 
 # Background processing thread
 def background_processing():
-    global barcode_data, face_detected, door_status
-    
+    global barcode_data, face_detected, door_status, last_activity
     while True:
         try:
             if picam2 and door_status == "closed":
                 frame = picam2.capture_array()
                 detected_barcode = scan_barcode(frame)
-                
                 if detected_barcode:
                     logging.info(f"QR code detected: {detected_barcode}")
                     if check_student_in_db(detected_barcode):
                         if verify_face(frame):
-                            log_attendance(detected_barcode)
                             open_door()
-                            if not check_entry():
-                                print("Please try again.")
+                            # Wait for student to enter
+                            if check_entry():
+                                log_attendance(detected_barcode)  # Mark as present only if entered
+                                print("Student entered successfully. Marked as present.")
+                            else:
+                                update_attendance_to_proxy(detected_barcode)  # Mark as proxy if not entered
+                                print("Student didn't enter. Marked as proxy.")
+                            
+                            # Add this line to update the attendance data in the frontend
+                            # This will make the attendance table refresh immediately
+                            last_activity = time.strftime("%H:%M:%S")
                         else:
                             print("Face verification failed!")
                     else:
@@ -292,11 +389,9 @@ def background_processing():
                         door_status = "closed"
         except Exception as e:
             logging.error(f"Error in background processing: {e}")
-            # Reset status if there was an error
             if door_status == "alert":
                 buzzer_pin.set_value(0)
                 door_status = "closed"
-        
         time.sleep(0.1)
 
 # Cleanup function
@@ -391,9 +486,24 @@ def get_stats():
         
         cursor.execute("SELECT COUNT(*) FROM students")
         total_students = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM student_attendance WHERE DATE(timestamp) = CURDATE()")
+        
+        # More explicit date formatting for today's entries
+        today = time.strftime("%Y-%m-%d")
+        cursor.execute("SELECT COUNT(*) FROM student_attendance WHERE DATE(timestamp) = %s", (today,))
         todays_entries = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM student_attendance WHERE YEARWEEK(timestamp) = YEARWEEK(NOW())")
+        
+        # Calculate the start and end of the current week (Sunday to Saturday)
+        # Get current date
+        now = time.localtime()
+        # Calculate days since start of week (assuming week starts on Sunday, 0-indexed)
+        days_since_sunday = now.tm_wday + 1 if now.tm_wday < 6 else 0
+        # Calculate start of week timestamp
+        week_start = time.strftime("%Y-%m-%d", time.localtime(time.time() - days_since_sunday * 86400))
+        # Calculate end of week timestamp (6 days after start)
+        week_end = time.strftime("%Y-%m-%d", time.localtime(time.time() + (6 - days_since_sunday) * 86400))
+        
+        cursor.execute("SELECT COUNT(*) FROM student_attendance WHERE DATE(timestamp) BETWEEN %s AND %s", 
+                      (week_start, week_end))
         this_week = cursor.fetchone()[0]
         
         cursor.close()
@@ -422,7 +532,7 @@ def get_attendance():
         
         cursor.execute("""
             SELECT s.name, sa.student_id, DATE_FORMAT(sa.timestamp, '%Y-%m-%d') as date, 
-                   DATE_FORMAT(sa.timestamp, '%H:%i:%s') as time, sa.status
+                   DATE_FORMAT(sa.timestamp, '%H:%i:%s') as time, sa.status, sa.verification_method
             FROM student_attendance sa
             JOIN students s ON sa.student_id = s.rollno
             ORDER BY sa.timestamp DESC
@@ -430,12 +540,12 @@ def get_attendance():
         """)
         
         result = [{
-            'name': row[0],  # Changed from 'studentName' to 'name' for consistency
+            'name': row[0],
             'studentId': row[1],
             'date': row[2],
             'timestamp': row[3],
             'status': row[4].lower(),
-            'verificationMethod': 'face'
+            'verificationMethod': row[5] if row[5] else 'none'
         } for row in cursor.fetchall()]
         
         cursor.close()
@@ -507,6 +617,15 @@ def add_student():
         cursor.close()
         db.close()  # Return to pool
         
+        # Add email to the data for Supabase sync
+        data['email'] = email
+        
+        # Sync to Supabase in a separate thread
+        threading.Thread(
+            target=sync_student_to_supabase,
+            args=(data,)
+        ).start()
+        
         return jsonify({'message': 'Student added successfully', 'id': last_id, 'email': email}), 201
     except mysql.connector.Error as err:
         return error_response(f"Database error: {err}", 500)
@@ -528,50 +647,47 @@ def update_student(student_id):
         db = connection_pool.get_connection()
         cursor = db.cursor()
         
-        # First, get current student data if name or rollno is being updated
-        # (needed to generate new email if these fields change)
+        # First, get current student data
+        cursor.execute("SELECT name, rollno, course, dob, email FROM students WHERE id = %s", (student_id,))
+        current_data = cursor.fetchone()
+        
+        if not current_data:
+            cursor.close()
+            db.close()
+            return error_response("Student not found", 404)
+        
+        # Create a dictionary of current data
+        current_student = {
+            'name': current_data[0],
+            'rollno': current_data[1],
+            'course': current_data[2],
+            'dob': current_data[3],
+            'email': current_data[4]
+        }
+        
+        # Update with new data
+        updated_student = {**current_student, **data}
+        
+        # Check if name or rollno is being updated (for email generation)
         regenerate_email = 'name' in data or 'rollno' in data
         
         if regenerate_email:
-            cursor.execute("SELECT name, rollno FROM students WHERE id = %s", (student_id,))
-            current_data = cursor.fetchone()
-            
-            if not current_data:
-                cursor.close()
-                db.close()
-                return error_response("Student not found", 404)
-                
-            # Use updated values or current values as needed
-            name = data.get('name', current_data[0])
-            rollno = data.get('rollno', current_data[1])
-            
             # Generate new email
-            name_part = name.lower().replace(' ', '')[:5]  # First 5 letters of name
-            email = f"{name_part}{rollno}@snuchennai.edu.in"
-            
-            # Add email to the fields to update
-            update_fields = ["email = %s"]
-            params = [email]
-        else:
-            update_fields = []
-            params = []
+            name_part = updated_student['name'].lower().replace(' ', '')[:5]  # First 5 letters of name
+            updated_student['email'] = f"{name_part}{updated_student['rollno']}@snuchennai.edu.in"
         
-        # Add other fields to update
-        if 'name' in data:
-            update_fields.append("name = %s")
-            params.append(data['name'])
+        # Build the SQL update query
+        update_fields = []
+        params = []
         
-        if 'rollno' in data:
-            update_fields.append("rollno = %s")
-            params.append(data['rollno'])
+        for field in ['name', 'rollno', 'course', 'dob']:
+            if field in data:
+                update_fields.append(f"{field} = %s")
+                params.append(data[field])
         
-        if 'course' in data:
-            update_fields.append("course = %s")
-            params.append(data['course'])
-            
-        if 'dob' in data:
-            update_fields.append("dob = %s")
-            params.append(data['dob'])
+        if regenerate_email:
+            update_fields.append("email = %s")
+            params.append(updated_student['email'])
         
         params.append(student_id)  # For the WHERE clause
         
@@ -581,15 +697,21 @@ def update_student(student_id):
         if cursor.rowcount == 0:
             cursor.close()
             db.close()  # Return to pool
-            return error_response("Student not found", 404)
+            return error_response("Student not found or no changes made", 404)
         
         db.commit()
         cursor.close()
         db.close()  # Return to pool
         
+        # Sync to Supabase
+        threading.Thread(
+            target=sync_student_to_supabase,
+            args=(updated_student,)
+        ).start()
+        
         response_data = {'message': 'Student updated successfully'}
         if regenerate_email:
-            response_data['email'] = email
+            response_data['email'] = updated_student['email']
             
         return jsonify(response_data)
     except mysql.connector.Error as err:
@@ -673,19 +795,45 @@ def periodic_db_check():
             else:
                 logging.error("Database reconnection failed in periodic check")
 
-# Start the periodic check thread
+# Add this near the end of your file, before the if __name__ == '__main__': line
+# Start periodic database check
 db_check_thread = threading.Thread(target=periodic_db_check)
 db_check_thread.daemon = True
 db_check_thread.start()
+# Add this function to your api_server.py file, after the database setup section
 
 @app.route('/api/health', methods=['GET'])
+@api_error_handler
 def health_check():
     return jsonify({
-        'status': 'ok',
+        'status': 'online',
         'timestamp': time.strftime("%Y-%m-%d %H:%M:%S"),
-        'database': check_db_connection(connection_pool),
-        'camera': picam2 is not None
+        'services': {
+            'database': check_db_connection(connection_pool),
+            'supabase': check_supabase_connection(),
+            'camera': picam2 is not None,
+            'gpio': infrared_pin is not None and buzzer_pin is not None
+        }
     })
+
+
+# Function to sync student data to Supabase
+def sync_student_to_supabase(student_data):
+    try:
+        # Prepare data for Supabase
+        supabase_student = {
+            "name": student_data['name'],
+            "rollno": student_data['rollno'],
+            "course": student_data['course'],
+            "dob": student_data['dob'],
+            "email": student_data['email']
+        }
+        
+        # Sync to Supabase
+        return sync_to_supabase("students", supabase_student, "rollno")
+    except Exception as e:
+        logging.error(f"Error syncing student to Supabase: {e}")
+        return False
 
 if __name__ == '__main__':
     try:
@@ -693,3 +841,57 @@ if __name__ == '__main__':
     except Exception as e:
         logging.error(f"Error starting server: {e}")
         cleanup()
+
+
+
+
+
+# Function to update attendance status to proxy
+def update_attendance_to_proxy(student_id):
+    try:
+        db = connection_pool.get_connection()
+        cursor = db.cursor()
+        
+        current_date = time.strftime("%Y-%m-%d")
+        # Get the ID of the most recent attendance record first 
+        cursor.execute( 
+            "SELECT id FROM student_attendance WHERE student_id = %s AND DATE(date) = %s ORDER BY timestamp DESC LIMIT 1", 
+            (student_id, current_date) 
+        ) 
+        record = cursor.fetchone() 
+        if record: 
+            cursor.execute("UPDATE student_attendance SET status = 'proxy' WHERE id = %s", (record[0],))
+        else:
+            # No attendance record found for today
+            print(f"No attendance record found for student {student_id} today.")
+            cursor.close()
+            db.close()  # Return to pool
+            return
+            
+        db.commit()
+        
+        cursor.close()
+        db.close()  # Return to pool
+        
+        print(f"Attendance updated to proxy for student: {student_id}")
+        
+        # Sync to Supabase
+        current_time = time.strftime("%H:%M:%S")
+        
+        # Prepare data for Supabase
+        attendance_data = {
+            "student_id": student_id,
+            "status": "proxy",
+            "verification_method": "partially verified",  # Changed from "fully verified" to "partially verified"
+            "date": current_date,
+            "timestamp": f"{current_date}T{current_time}"
+        }
+        
+        # Sync to Supabase in a separate thread to avoid blocking
+        threading.Thread(
+            target=sync_to_supabase,
+            args=("student_attendance", attendance_data, "student_id,timestamp")
+        ).start()
+        
+    except mysql.connector.Error as err:
+        print(f"Database error in update_attendance_to_proxy: {err}")

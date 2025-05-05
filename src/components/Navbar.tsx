@@ -4,6 +4,7 @@ import ThemeToggle from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Barcode, LogOut, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import SyncButton from "./SyncButton";
 
 const Navbar = () => {
   const { isAuthenticated, logout } = useAuth();
@@ -28,6 +29,7 @@ const Navbar = () => {
         </nav>
 
         <div className="flex items-center gap-2">
+          {isAuthenticated && <SyncButton />}
           <ThemeToggle />
           {isAuthenticated ? (
             <div className="flex items-center gap-2">

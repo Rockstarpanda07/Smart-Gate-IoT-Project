@@ -16,8 +16,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { API_ENDPOINTS, buildApiUrl } from "@/config/api";
 
-// Import the sync function
-import { syncDataToSupabase } from "@/lib/syncData";
+// Remove this line
+// import { syncDataToSupabase } from "@/lib/syncData";
 
 interface Student {
   id: string;
@@ -219,8 +219,8 @@ const AdminDashboard = () => {
                 Add Student
               </Button>
               
-              {/* Add the Sync Data Now button here */}
-              <Button 
+              {/* Remove this entire button block */}
+              {/* <Button 
                 onClick={async () => {
                   const result = await syncDataToSupabase();
                   if (result.success) {
@@ -235,7 +235,7 @@ const AdminDashboard = () => {
                 className="h-9"
               >
                 Sync Data Now
-              </Button>
+              </Button> */}
             </div>
           </div>
         </CardHeader>

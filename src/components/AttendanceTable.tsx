@@ -127,12 +127,15 @@ const AttendanceTable = () => {
     const interval = setInterval(() => {
       fetchAttendanceData();
       fetchStudents();
-    }, 10000);
+    }, 5000); // Change from 10000 to 5000 for more frequent updates
     return () => clearInterval(interval);
   }, []);
 
-  const mergedData = students.map(student => {
-    const attendanceRecord = attendanceData.find(a => a.studentId === student.studentId || a.studentId === student.rollno);
+  // Replace the mergedData code with this improved version
+  const mergedData = [...students.map(student => {
+    const attendanceRecord = attendanceData.find(a => 
+      a.studentId === student.studentId || a.studentId === student.rollno
+    );
     return {
       studentId: student.studentId,
       studentName: student.name,
@@ -143,7 +146,27 @@ const AttendanceTable = () => {
       verificationMethod: attendanceRecord?.status === 'present' ? 'fully verified' : 
                           attendanceRecord?.status === 'proxy' ? 'partially verified' : 'none'
     };
-  });
+  }),
+  // Add any attendance records that don't match existing students
+  ...attendanceData
+    .filter(record => !students.some(s => 
+      s.studentId === record.studentId || s.rollno === record.studentId
+    ))
+    .map(record => ({
+      studentId: record.studentId,
+      studentName: record.studentName || 'Unknown',
+      course: record.course || '',
+      date: record.date,
+      timestamp: record.timestamp,
+      status: record.status,
+      verificationMethod: record.status === 'present' ? 'fully verified' : 
+                          record.status === 'proxy' ? 'partially verified' : 'none'
+    }))
+  ];
+
+  console.log('Attendance data from API:', attendanceData);
+  console.log('Students data from API:', students);
+  console.log('Merged data:', mergedData);
 
   const filteredData = mergedData.filter((record) => {
     const matchesSearch =
@@ -289,11 +312,6 @@ const AttendanceTable = () => {
                 <TableHead>Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Method</TableHead>
-              </TableRow>
-              <TableRow>
-                <TableHead colSpan={6} className="bg-muted/50 text-muted-foreground text-xs">
-                  All Registered Students
-                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
