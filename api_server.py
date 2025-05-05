@@ -835,18 +835,6 @@ def sync_student_to_supabase(student_data):
         logging.error(f"Error syncing student to Supabase: {e}")
         return False
 
-if __name__ == '__main__':
-    try:
-        app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, use_reloader=False)
-    except Exception as e:
-        logging.error(f"Error starting server: {e}")
-        cleanup()
-
-
-
-
-
-# Function to update attendance status to proxy
 def update_attendance_to_proxy(student_id):
     try:
         db = connection_pool.get_connection()
@@ -860,20 +848,18 @@ def update_attendance_to_proxy(student_id):
         ) 
         record = cursor.fetchone() 
         if record: 
-            cursor.execute("UPDATE student_attendance SET status = 'proxy' WHERE id = %s", (record[0],))
+            cursor.execute("UPDATE student_attendance SET status = 'proxy', verification_method = 'partially verified' WHERE id = %s", (record[0],))
+            print(f"Existing attendance record updated to proxy for student: {student_id}")
         else:
-            # No attendance record found for today
-            print(f"No attendance record found for student {student_id} today.")
-            cursor.close()
-            db.close()  # Return to pool
-            return
+            # No attendance record found for today, create a new one
+            print(f"Creating new proxy attendance record for student {student_id}")
+            cursor.execute("INSERT INTO student_attendance (student_id, status, verification_method) VALUES (%s, %s, %s)", 
+                          (student_id, "proxy", "partially verified"))
             
         db.commit()
         
         cursor.close()
         db.close()  # Return to pool
-        
-        print(f"Attendance updated to proxy for student: {student_id}")
         
         # Sync to Supabase
         current_time = time.strftime("%H:%M:%S")
@@ -882,7 +868,7 @@ def update_attendance_to_proxy(student_id):
         attendance_data = {
             "student_id": student_id,
             "status": "proxy",
-            "verification_method": "partially verified",  # Changed from "fully verified" to "partially verified"
+            "verification_method": "partially verified",
             "date": current_date,
             "timestamp": f"{current_date}T{current_time}"
         }
@@ -895,3 +881,14 @@ def update_attendance_to_proxy(student_id):
         
     except mysql.connector.Error as err:
         print(f"Database error in update_attendance_to_proxy: {err}")
+
+if __name__ == '__main__':
+    try:
+        app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, use_reloader=False)
+    except Exception as e:
+        logging.error(f"Error starting server: {e}")
+        cleanup()
+
+
+
+
