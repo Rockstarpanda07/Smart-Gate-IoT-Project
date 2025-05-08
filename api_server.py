@@ -167,16 +167,20 @@ try:
     
     if len(camera_info) > 0:
         picam2 = Picamera2()
-        # Use a much more conservative configuration with very low resolution
+        # Improved configuration with higher resolution
         camera_config = picam2.create_still_configuration(
-            main={"size": (640, 480)},  # Much lower resolution
-            lores={"size": (320, 240)},  # Even lower for secondary stream
+            main={"size": (1280, 720)},  # Higher resolution
+            lores={"size": (640, 480)},  # Secondary stream with decent resolution
             display=None,  # Disable display stream
-            buffer_count=1  # Minimize buffer usage
+            buffer_count=2  # Slightly increased buffer for better performance
         )
+        
+        # Set color correction to fix blue skin tone issue
+        picam2.set_controls({"AwbEnable": True, "AwbMode": 0})  # Auto white balance
+        
         picam2.configure(camera_config)
         picam2.start()
-        logging.info("Camera initialized successfully")
+        logging.info("Camera initialized successfully with improved settings")
     else:
         logging.error("No camera detected on this device")
         picam2 = None
@@ -327,7 +331,7 @@ def check_entry():
     start_time = time.time()
     
     while time.time() - start_time < 15:
-        if infrared_pin.get_value() == 1:
+        if infrared_pin.get_value() == 0:
             print("Student entered successfully.")
             return True
     
@@ -730,10 +734,18 @@ def delete_student(student_id):
         db = connection_pool.get_connection()
         cursor = db.cursor()
         
-        # Log the student_id for debugging
-        logging.info(f"Attempting to delete student with ID: {student_id}")
+        # First get the student's rollno (needed for Supabase deletion)
+        cursor.execute("SELECT rollno FROM students WHERE id = %s", (student_id,))
+        result = cursor.fetchone()
         
-        # Use the string ID directly without conversion
+        if not result:
+            cursor.close()
+            db.close()  # Return to pool
+            return error_response("Student not found", 404)
+            
+        rollno = result[0]  # Get the rollno for Supabase deletion
+        
+        # Delete from local database
         cursor.execute("DELETE FROM students WHERE id = %s", (student_id,))
         
         if cursor.rowcount == 0:
@@ -744,6 +756,12 @@ def delete_student(student_id):
         db.commit()
         cursor.close()
         db.close()  # Return to pool
+        
+        # Delete from Supabase in a separate thread
+        threading.Thread(
+            target=delete_student_from_supabase,
+            args=(rollno,)
+        ).start()
         
         return jsonify({'message': 'Student deleted successfully'})
     except mysql.connector.Error as err:
@@ -881,6 +899,32 @@ def update_attendance_to_proxy(student_id):
         
     except mysql.connector.Error as err:
         print(f"Database error in update_attendance_to_proxy: {err}")
+
+def delete_student_from_supabase(student_id):
+    try:
+        headers = {
+            'apikey': SUPABASE_KEY,
+            'Authorization': f'Bearer {SUPABASE_KEY}',
+            'Content-Type': 'application/json'
+        }
+        
+        url = f"{SUPABASE_URL}/rest/v1/students?rollno=eq.{student_id}"
+        
+        response = requests.delete(
+            url,
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code in [200, 201, 204]:
+            logging.info(f"Student {student_id} deleted from Supabase successfully")
+            return True
+        else:
+            logging.error(f"Failed to delete student from Supabase: {response.text}")
+            return False
+    except Exception as e:
+        logging.error(f"Error deleting student from Supabase: {e}")
+        return False
 
 if __name__ == '__main__':
     try:
