@@ -1,4 +1,4 @@
-# AttendSmart Gate System
+# AttendSmart Gate System.
 
 A smart attendance system that uses Raspberry Pi, camera, and sensors to automate student attendance tracking with barcode scanning and face verification.
 
