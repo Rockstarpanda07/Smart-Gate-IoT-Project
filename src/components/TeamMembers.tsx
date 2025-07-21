@@ -14,18 +14,18 @@ interface TeamMember {
 const TeamMembers = () => {
   const teamMembers: TeamMember[] = [
     {
-      name: "SUNIL R",
+      name: "R SUNIL",
       role: "Team Member",
-      photo: "https://media.licdn.com/dms/image/v2/D4D03AQENdCHHnzQJmg/profile-displayphoto-shrink_400_400/B4DZNm.rwPHQAg-/0/1732599532236?e=1752105600&v=beta&t=zGBm-d7KYjkGUwTV_Vz1SdyZK0R9a0T0hhpOQH0_6a4",
+      photo: "https://media.licdn.com/dms/image/v2/D4D03AQENdCHHnzQJmg/profile-displayphoto-shrink_400_400/B4DZNm.rwPHQAg-/0/1732599532236?e=1755734400&v=beta&t=iERwp3eCzGKOGNUdUVlImKYpjaITm2XkOfLYc-ZqIj4",
       bio: "Project team member",
       social: {
-        linkedin: "https://www.linkedin.com/in/sunil-r-a11b0733a/"
+        linkedin: "https://www.linkedin.com/in/rsunil07/"
       }
     },
     {
       name: "PRASANTH",
       role: "Team Member",
-      photo: "https://media.licdn.com/dms/image/v2/D5603AQF5va2GISFGnw/profile-displayphoto-shrink_400_400/B56ZO7brxkGcAg-/0/1734016418059?e=1752105600&v=beta&t=hIBegL1ndwZarguSEbJh-uJnOhxhFBTjN3S3klQHBwg",
+      photo: "https://media.licdn.com/dms/image/v2/D5603AQF5va2GISFGnw/profile-displayphoto-shrink_400_400/B56ZO7brxkGcAg-/0/1734016418059?e=1755734400&v=beta&t=YVBdLQGBt0gJJjnHJbwAv7I2LueuIbI2wlWn6s4lYu0",
       bio: "Project team member",
       social: {
         linkedin: "https://www.linkedin.com/in/prasanth-m-b4093a33a/"
@@ -34,7 +34,7 @@ const TeamMembers = () => {
     {
       name: "PRANAV PRAKASH A",
       role: "Team Member",
-      photo: "https://media.licdn.com/dms/image/v2/D4D03AQHvW3XrZWDAkw/profile-displayphoto-shrink_400_400/B4DZabUlhrHwAg-/0/1746362587706?e=1752105600&v=beta&t=NGgE4stJ5MD2KZiCvyakZu5NR2tlK5gB93X5yV3bNm8",
+      photo: "https://media.licdn.com/dms/image/v2/D4D35AQFhDDtV3OQlRg/profile-framedphoto-shrink_400_400/B4DZbKAdB2GYAc-/0/1747145839072?e=1753722000&v=beta&t=IDB46QYAYCCjULRgkAK5M_2mEsCC0D140_LIy6dbhP0",
       bio: "Project team member",
       social: {
         linkedin: "https://www.linkedin.com/in/pranav-prakzzz/"
@@ -43,7 +43,7 @@ const TeamMembers = () => {
     {
       name: "PRATYUSSH",
       role: "Team Member",
-      photo: "https://media.licdn.com/dms/image/v2/D4E03AQEb6oUsFykF9A/profile-displayphoto-shrink_400_400/B4EZabNJbPHYAk-/0/1746360638417?e=1752105600&v=beta&t=Zx2M0RX6WG0GO4cMVs82oRN-iPKEHhOZcTmZcclq3M0",
+      photo: "https://media.licdn.com/dms/image/v2/D4E03AQEb6oUsFykF9A/profile-displayphoto-shrink_400_400/B4EZabNJbPHYAk-/0/1746360638417?e=1755734400&v=beta&t=QgSdwd14HpkZNS98omA5GWRHDfTG8bE9xMQEXZdeRqw",
       bio: "Project team member",
       social: {
         linkedin: "https://www.linkedin.com/in/pratyussh-thirumurugan-a75697330/"
