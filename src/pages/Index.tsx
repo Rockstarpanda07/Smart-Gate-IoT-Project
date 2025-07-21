@@ -4,6 +4,9 @@ import Navbar from "@/components/Navbar";
 import CameraFeed from "@/components/CameraFeed";
 import DoorStatus from "@/components/DoorStatus";
 import AttendanceTable from "@/components/AttendanceTable";
+//remove the above if you are using the mock data
+//import MockAttendanceTable from "@/components/MockAttendanceTable"; // Add this import for MockAttendanceTable
+
 import TeamMembers from "@/components/TeamMembers"; // Add this import
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";

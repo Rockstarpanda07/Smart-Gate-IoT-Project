@@ -28,13 +28,14 @@ logging.basicConfig(
 app = Flask(__name__)
 
 # Update the CORS configuration to be more permissive for development
+# Update the CORS configuration
 CORS(app, resources={
     r"/*": {
-        "origins": ["http://192.168.187.111:8080", "http://localhost:8080"],
+        "origins": ["http://192.168.165.222:8080", "http://localhost:8080"],  # Updated IP
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
         "supports_credentials": True,
-        "max_age": 86400  # Cache preflight response for 24 hours
+        "max_age": 86400
     }
 })  # Enable CORS for all routes
 
@@ -167,18 +168,16 @@ try:
     
     if len(camera_info) > 0:
         picam2 = Picamera2()
-        # Improved configuration with higher resolution
+        # Configure for RGB format explicitly
         camera_config = picam2.create_still_configuration(
-            main={"size": (1280, 720)},  # Higher resolution
-            lores={"size": (640, 480)},  # Secondary stream with decent resolution
-            display=None,  # Disable display stream
-            buffer_count=2  # Slightly increased buffer for better performance
+            main={"size": (1280, 720), "format": "RGB888"},  # Specify RGB format
+            lores={"size": (640, 480)},
+            display=None,
+            buffer_count=2
         )
         
-        # Set color correction to fix blue skin tone issue
+        picam2.configure(camera_config)  # Apply the configuration
         picam2.set_controls({"AwbEnable": True, "AwbMode": 0})  # Auto white balance
-        
-        picam2.configure(camera_config)
         picam2.start()
         logging.info("Camera initialized successfully with improved settings")
     else:
@@ -216,18 +215,39 @@ def scan_barcode(frame):
 # Function to verify face
 def verify_face(frame):
     global face_detected
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-    
-    if len(faces) > 0:
-        face_detected = True
-        print("Face detected!")
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        return True
-    face_detected = False
-    return False
+    try:
+        # Try multiple possible paths for the cascade file
+        cascade_paths = [
+            '/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',  # Common location
+            '/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',  # Alternative location
+            '/usr/local/lib/python3.9/dist-packages/cv2/data/haarcascade_frontalface_default.xml'  # Pip installation location
+        ]
+        
+        face_cascade = None
+        for cascade_path in cascade_paths:
+            if os.path.exists(cascade_path):
+                face_cascade = cv2.CascadeClassifier(cascade_path)
+                if not face_cascade.empty():
+                    break
+        
+        if face_cascade is None or face_cascade.empty():
+            logging.error("Error: Could not load face cascade classifier from any known location")
+            return False
+            
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+        
+        if len(faces) > 0:
+            face_detected = True
+            print("Face detected!")
+            for (x, y, w, h) in faces:
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+            return True
+        face_detected = False
+        return False
+    except Exception as e:
+        logging.error(f"Error in face detection: {e}")
+        return False
 
 # Function to log attendance
 # Function to log attendance
@@ -426,6 +446,12 @@ processing_thread.daemon = True
 processing_thread.start()
 
 # API Routes remain exactly the same as before
+@app.route('/')
+def index():
+    return jsonify({
+        'status': 'success',
+        'message': 'Smart Gate API Server is running'
+    })
 @app.route('/api/camera-feed', methods=['GET'])
 def get_camera_feed():
     if not picam2:

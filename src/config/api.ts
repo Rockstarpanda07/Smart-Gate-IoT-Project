@@ -2,12 +2,12 @@
 
 // Available API server configurations
 const API_SERVERS = {
-  PHONE: "http://192.168.187.113:5000",  // Updated to match actual server IP
-  COLLEGE: "http://10.31.3.211:5000",
+  PHONE: "http://192.168.165.222:5000",  // Updated to your RPi 5 IP
+  COLLEGE: "http://10.31.3.211:5000"
 };
 
 // Set the current environment here (change to COLLEGE or PHONE as needed)
-export const CURRENT_ENV = "PHONE";  // Changed to PHONE since that's the IP range you're using
+export const CURRENT_ENV = "PHONE";
 
 // Raspberry Pi's IP address for API connection
 export const API_BASE_URL = API_SERVERS[CURRENT_ENV];
